@@ -27,6 +27,15 @@ export function sum<T>(items: T[], fn: (i: T) => number): number {
   return items.reduce((acc, it) => acc + (fn(it) || 0), 0);
 }
 
+// Filter helpers
+export function ventasActivas(ventas: Venta[]): Venta[] {
+  return ventas.filter(v => v.estado !== 'Anulado');
+}
+
+export function gastosActivos(gastos: Gasto[]): Gasto[] {
+  return gastos.filter(g => g.estado !== 'Anulado');
+}
+
 export interface OverviewKpis {
   ingresosYTD: number;
   gastosYTD: number;
@@ -36,34 +45,100 @@ export interface OverviewKpis {
   pendientePagar: number;
   facturasVencidas: number;
   diasCobroMedio: number;
+  // New fields
+  ingresosNetoYTD: number;
+  gastosNetoYTD: number;
+  margenPct: number;
+  pendienteCobrarVencido: number;
+  pendientePagarVencido: number;
+  workingCapital: number;
+  facturasVencidasPago: number;
+  tasaCobro: number;
+  tasaPago: number;
+  dpo: number;
+  ivaRepercutido: number;
+  ivaSoportado: number;
+  saldoIVA: number;
 }
 
 export function computeOverviewKpis(data: FinancialData, now = new Date()): OverviewKpis {
-  const ventasYTD = ytdFilter(data.ventas, now);
-  const gastosYTD = ytdFilter(data.gastos, now);
-
-  const ingresosYTD = sum(ventasYTD, (v) => v.total);
-  const gastosTotalYTD = sum(gastosYTD, (g) => g.total);
-  const resultadoNeto = ingresosYTD - gastosTotalYTD;
-
-  const totalCobrado = sum(data.ventas, (v) => v.cobrado);
-  const totalPagado = sum(data.gastos, (g) => g.pagado);
-  const posicionCaja = totalCobrado - totalPagado;
-
-  const pendienteCobrar = sum(data.ventas, (v) => v.pendiente);
-  const pendientePagar = sum(data.gastos, (g) => g.pendiente);
-
   const today = new Date(now);
   today.setHours(0, 0, 0, 0);
-  const facturasVencidas = data.ventas.filter(
+
+  const activeVentas = ventasActivas(data.ventas);
+  const activeGastos = gastosActivos(data.gastos);
+
+  const ventasYTD = ytdFilter(activeVentas, now);
+  const gastosYTD = ytdFilter(activeGastos, now);
+
+  // P&L with IVA (total)
+  const ingresosYTD = sum(ventasYTD, (v) => v.total);
+  const gastosTotalYTD = sum(gastosYTD, (g) => g.total);
+
+  // P&L without IVA (subtotal)
+  const ingresosNetoYTD = sum(ventasYTD, (v) => v.subtotal);
+  const gastosNetoYTD = sum(gastosYTD, (g) => g.subtotal);
+
+  // Resultado neto is pre-VAT
+  const resultadoNeto = ingresosNetoYTD - gastosNetoYTD;
+  const margenPct = ingresosNetoYTD > 0 ? (resultadoNeto / ingresosNetoYTD) * 100 : 0;
+
+  // Cash position (real money movement)
+  const totalCobrado = sum(activeVentas, (v) => v.cobrado);
+  const totalPagado = sum(activeGastos, (g) => g.pagado);
+  const posicionCaja = totalCobrado - totalPagado;
+
+  // Pending (all active, not just YTD)
+  const pendienteCobrar = sum(activeVentas, (v) => v.pendiente);
+  const pendientePagar = sum(activeGastos, (g) => g.pendiente);
+
+  // Overdue receivables
+  const pendienteCobrarVencido = sum(
+    activeVentas.filter(v => v.estado === 'Vencido'),
+    (v) => v.pendiente
+  );
+
+  // Overdue payables: estado === 'Vencido' OR (pendiente > 0 && vencimiento < today)
+  const overdueGastos = activeGastos.filter(
+    g => g.estado === 'Vencido' || (g.pendiente > 0 && g.vencimiento && g.vencimiento.getTime() < today.getTime())
+  );
+  const pendientePagarVencido = sum(overdueGastos, (g) => g.pendiente);
+
+  const workingCapital = pendienteCobrar - pendientePagar;
+
+  // Overdue invoices counts
+  const facturasVencidas = activeVentas.filter(
     (v) => v.vencimiento && v.vencimiento.getTime() < today.getTime() && v.pendiente > 0
   ).length;
 
-  const cobradas = data.ventas.filter((v) => v.fecha && v.fechaCobro);
+  const facturasVencidasPago = activeGastos.filter(
+    (g) => g.pendiente > 0 && g.vencimiento && g.vencimiento.getTime() < today.getTime()
+  ).length;
+
+  // Tasa cobro / pago
+  const totalActiveFacturado = sum(activeVentas, (v) => v.total);
+  const totalActiveGastos = sum(activeGastos, (g) => g.total);
+  const tasaCobro = totalActiveFacturado > 0 ? (totalCobrado / totalActiveFacturado) * 100 : 0;
+  const tasaPago = totalActiveGastos > 0 ? (totalPagado / totalActiveGastos) * 100 : 0;
+
+  // DSO: avg days from fecha to fechaCobro (active ventas)
+  const cobradas = activeVentas.filter((v) => v.fecha && v.fechaCobro);
   const dso = cobradas.length
     ? cobradas.reduce((acc, v) => acc + daysBetween(v.fecha!, v.fechaCobro!), 0) /
       cobradas.length
     : 0;
+
+  // DPO: avg days from fechaEmision to fechaPago
+  const pagadasGastos = activeGastos.filter((g) => g.fechaEmision && g.fechaPago);
+  const dpo = pagadasGastos.length
+    ? pagadasGastos.reduce((acc, g) => acc + daysBetween(g.fechaEmision!, g.fechaPago!), 0) /
+      pagadasGastos.length
+    : 0;
+
+  // IVA balance (YTD, active)
+  const ivaRepercutido = sum(ventasYTD, (v) => v.iva);
+  const ivaSoportado = sum(gastosYTD, (g) => g.iva);
+  const saldoIVA = ivaRepercutido - ivaSoportado;
 
   return {
     ingresosYTD,
@@ -74,6 +149,19 @@ export function computeOverviewKpis(data: FinancialData, now = new Date()): Over
     pendientePagar,
     facturasVencidas,
     diasCobroMedio: Math.round(dso),
+    ingresosNetoYTD,
+    gastosNetoYTD,
+    margenPct,
+    pendienteCobrarVencido,
+    pendientePagarVencido,
+    workingCapital,
+    facturasVencidasPago,
+    tasaCobro,
+    tasaPago,
+    dpo: Math.round(dpo),
+    ivaRepercutido,
+    ivaSoportado,
+    saldoIVA,
   };
 }
 
@@ -109,12 +197,12 @@ export function monthlyRevenueVsExpenses(
     };
   }
   for (const v of data.ventas) {
-    if (!v.fecha) continue;
+    if (!v.fecha || v.estado === 'Anulado') continue;
     const key = `${v.fecha.getFullYear()}-${String(v.fecha.getMonth() + 1).padStart(2, '0')}`;
     if (buckets[key]) buckets[key].ingresos += v.total;
   }
   for (const g of data.gastos) {
-    if (!g.fechaEmision) continue;
+    if (!g.fechaEmision || g.estado === 'Anulado') continue;
     const key = `${g.fechaEmision.getFullYear()}-${String(g.fechaEmision.getMonth() + 1).padStart(2, '0')}`;
     if (buckets[key]) buckets[key].gastos += g.total;
   }
@@ -147,6 +235,139 @@ export function cashPositionTrend(data: FinancialData, monthsBack = 12, now = ne
     });
   }
   return points;
+}
+
+// Monthly actual cash flows using fechaCobro / fechaPago (real money movement)
+export interface MonthlyCashFlowPoint {
+  month: string;
+  label: string;
+  cobros: number;
+  pagos: number;
+  neto: number;
+}
+
+export function monthlyCobrosYPagos(
+  data: FinancialData,
+  monthsBack = 12,
+  now = new Date()
+): MonthlyCashFlowPoint[] {
+  const buckets: Record<string, MonthlyCashFlowPoint> = {};
+  const start = new Date(now.getFullYear(), now.getMonth() - (monthsBack - 1), 1);
+  for (let i = 0; i < monthsBack; i++) {
+    const d = new Date(start.getFullYear(), start.getMonth() + i, 1);
+    const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+    buckets[key] = {
+      month: key,
+      label: `${MONTH_LABELS_ES[d.getMonth()]} ${String(d.getFullYear()).slice(2)}`,
+      cobros: 0,
+      pagos: 0,
+      neto: 0,
+    };
+  }
+  for (const v of data.ventas) {
+    if (!v.fechaCobro || v.estado === 'Anulado') continue;
+    const key = `${v.fechaCobro.getFullYear()}-${String(v.fechaCobro.getMonth() + 1).padStart(2, '0')}`;
+    if (buckets[key]) buckets[key].cobros += v.cobrado;
+  }
+  for (const g of data.gastos) {
+    if (!g.fechaPago || g.estado === 'Anulado') continue;
+    const key = `${g.fechaPago.getFullYear()}-${String(g.fechaPago.getMonth() + 1).padStart(2, '0')}`;
+    if (buckets[key]) buckets[key].pagos += g.pagado;
+  }
+  const arr = Object.values(buckets);
+  arr.forEach((p) => (p.neto = p.cobros - p.pagos));
+  return arr;
+}
+
+// Stacked monthly ventas breakdown
+export interface MonthlyVentasStackedPoint {
+  month: string;
+  label: string;
+  cobrado: number;
+  pendiente: number;
+  vencido: number;
+}
+
+export function monthlyVentasStacked(
+  ventas: Venta[],
+  monthsBack = 12,
+  now = new Date()
+): MonthlyVentasStackedPoint[] {
+  const buckets: Record<string, MonthlyVentasStackedPoint> = {};
+  const start = new Date(now.getFullYear(), now.getMonth() - (monthsBack - 1), 1);
+  for (let i = 0; i < monthsBack; i++) {
+    const d = new Date(start.getFullYear(), start.getMonth() + i, 1);
+    const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+    buckets[key] = {
+      month: key,
+      label: `${MONTH_LABELS_ES[d.getMonth()]} ${String(d.getFullYear()).slice(2)}`,
+      cobrado: 0,
+      pendiente: 0,
+      vencido: 0,
+    };
+  }
+  for (const v of ventas) {
+    if (!v.fecha || v.estado === 'Anulado') continue;
+    const key = `${v.fecha.getFullYear()}-${String(v.fecha.getMonth() + 1).padStart(2, '0')}`;
+    if (!buckets[key]) continue;
+    buckets[key].cobrado += v.cobrado;
+    if (v.estado === 'Vencido') {
+      buckets[key].vencido += v.pendiente;
+    } else {
+      buckets[key].pendiente += v.pendiente;
+    }
+  }
+  return Object.values(buckets);
+}
+
+// Estado distribution for donut charts
+export interface EstadoSummary {
+  estado: string;
+  value: number;
+  count: number;
+  color: string;
+}
+
+const ESTADO_COLORS: Record<string, string> = {
+  'Pagado': '#22c55e',
+  'Cobrado': '#22c55e',
+  'Pendiente': '#3b82f6',
+  'Vencido': '#ef4444',
+  'Anulado': '#9ca3af',
+};
+
+export function estadoDistributionVentas(ventas: Venta[]): EstadoSummary[] {
+  const map = new Map<string, EstadoSummary>();
+  for (const v of ventas) {
+    const k = v.estado || 'Desconocido';
+    const existing = map.get(k) || {
+      estado: k,
+      value: 0,
+      count: 0,
+      color: ESTADO_COLORS[k] || '#6b7280',
+    };
+    existing.value += v.total;
+    existing.count += 1;
+    map.set(k, existing);
+  }
+  return Array.from(map.values()).sort((a, b) => b.value - a.value);
+}
+
+export function estadoDistributionGastos(gastos: Gasto[]): EstadoSummary[] {
+  const map = new Map<string, EstadoSummary>();
+  for (const g of gastos) {
+    const k = g.estado || 'Desconocido';
+    const existing = map.get(k) || {
+      estado: k,
+      value: 0,
+      count: 0,
+      color: ESTADO_COLORS[k] || '#6b7280',
+    };
+    existing.value += g.total;
+    existing.count += 1;
+    map.set(k, existing);
+  }
+  return Array.from(map.values()).sort((a, b) => b.value - a.value);
 }
 
 export interface TopGroup {
@@ -206,6 +427,22 @@ export function topCuentasGastos(gastos: Gasto[], top = 8): TopGroup[] {
   return Array.from(map.values()).sort((a, b) => b.value - a.value).slice(0, top);
 }
 
+// Top tags by gastos subtotal
+export function topTagsGastos(gastos: Gasto[], top = 10): TopGroup[] {
+  const map = new Map<string, TopGroup>();
+  for (const g of gastos) {
+    if (!g.tags || !Array.isArray(g.tags)) continue;
+    for (const tag of g.tags) {
+      if (!tag) continue;
+      const existing = map.get(tag) || { name: tag, value: 0, count: 0 };
+      existing.value += g.subtotal;
+      existing.count += 1;
+      map.set(tag, existing);
+    }
+  }
+  return Array.from(map.values()).sort((a, b) => b.value - a.value).slice(0, top);
+}
+
 export interface AgingBucket {
   range: string;
   value: number;
@@ -235,6 +472,87 @@ export function agingAnalysis(ventas: Venta[], now = new Date()): AgingBucket[] 
     buckets[idx].count += 1;
   }
   return buckets;
+}
+
+// Aging for payables (gastos)
+export function agingGastos(gastos: Gasto[], now = new Date()): AgingBucket[] {
+  const buckets: AgingBucket[] = [
+    { range: '0-30 días', value: 0, count: 0, color: '#22c55e' },
+    { range: '31-60 días', value: 0, count: 0, color: '#f59e0b' },
+    { range: '61-90 días', value: 0, count: 0, color: '#ef4444' },
+    { range: '90+ días', value: 0, count: 0, color: '#7f1d1d' },
+  ];
+  const today = new Date(now);
+  today.setHours(0, 0, 0, 0);
+  for (const g of gastos) {
+    if (g.pendiente <= 0 || !g.vencimiento) continue;
+    if (g.vencimiento.getTime() >= today.getTime()) continue;
+    const days = daysBetween(g.vencimiento, today);
+    let idx = 0;
+    if (days <= 30) idx = 0;
+    else if (days <= 60) idx = 1;
+    else if (days <= 90) idx = 2;
+    else idx = 3;
+    buckets[idx].value += g.pendiente;
+    buckets[idx].count += 1;
+  }
+  return buckets;
+}
+
+// Monthly gastos by top cuenta (for stacked chart)
+export function monthlyCuentaGastos(
+  gastos: Gasto[],
+  monthsBack = 6,
+  top = 5,
+  now = new Date()
+): { data: Array<Record<string, string | number>>; cuentas: string[] } {
+  const activeGastos = gastosActivos(gastos);
+
+  // Get top N cuentas by total value
+  const cuentaMap = new Map<string, number>();
+  for (const g of activeGastos) {
+    const k = g.cuenta || 'Sin clasificar';
+    cuentaMap.set(k, (cuentaMap.get(k) || 0) + g.subtotal);
+  }
+  const topCuentas = Array.from(cuentaMap.entries())
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, top)
+    .map(([name]) => name);
+
+  // Build monthly buckets
+  const start = new Date(now.getFullYear(), now.getMonth() - (monthsBack - 1), 1);
+  const months: Array<{ key: string; label: string }> = [];
+  for (let i = 0; i < monthsBack; i++) {
+    const d = new Date(start.getFullYear(), start.getMonth() + i, 1);
+    const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+    months.push({
+      key,
+      label: `${MONTH_LABELS_ES[d.getMonth()]} ${String(d.getFullYear()).slice(2)}`,
+    });
+  }
+
+  const data = months.map(({ key, label }) => {
+    const row: Record<string, string | number> = { month: key, label };
+    for (const c of topCuentas) {
+      row[c] = 0;
+    }
+    return row;
+  });
+
+  const monthIndex = new Map(months.map((m, i) => [m.key, i]));
+
+  for (const g of activeGastos) {
+    if (!g.fechaEmision) continue;
+    const key = `${g.fechaEmision.getFullYear()}-${String(g.fechaEmision.getMonth() + 1).padStart(2, '0')}`;
+    const idx = monthIndex.get(key);
+    if (idx === undefined) continue;
+    const cuenta = g.cuenta || 'Sin clasificar';
+    if (topCuentas.includes(cuenta)) {
+      (data[idx][cuenta] as number) += g.subtotal;
+    }
+  }
+
+  return { data, cuentas: topCuentas };
 }
 
 export interface CashFlowProjection {
@@ -284,7 +602,7 @@ export function projectedCashFlow(
     const net = receivables - payables;
     cumulative += net;
     points.push({
-      month: `${start.getFullYear()}-${String(start.getMonth() + 1).padStart(2, '0')}`,
+      month: `${start.getFullYear()}-${String(start.getMonth() + 1).padStart(2, '00')}`,
       label: `${MONTH_LABELS_ES[start.getMonth()]} ${String(start.getFullYear()).slice(2)}`,
       receivables,
       payables,
