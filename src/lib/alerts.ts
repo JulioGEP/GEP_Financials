@@ -95,9 +95,13 @@ export function generateAlerts(data: FinancialData, now = new Date()): Alert[] {
     }
   });
 
-  // INFO: client concentration risk
-  const totalRevenue = data.ventas.reduce((acc, v) => acc + v.total, 0);
-  const top = topClientes(data.ventas, 1);
+  // INFO: client concentration risk (YTD active ventas up to today)
+  const ytdStart = new Date(today.getFullYear(), 0, 1);
+  const ytdVentas = data.ventas.filter(
+    (v) => v.estado !== 'Anulado' && v.fecha && v.fecha >= ytdStart && v.fecha <= today
+  );
+  const totalRevenue = ytdVentas.reduce((acc, v) => acc + v.total, 0);
+  const top = topClientes(ytdVentas, 1);
   if (top.length > 0 && totalRevenue > 0) {
     const share = top[0].value / totalRevenue;
     if (share > 0.4) {
@@ -176,11 +180,14 @@ function monthsGastosAvg(
 
 function detectRecurringSuppliers(
   data: FinancialData,
-  _now: Date
+  now: Date
 ): { name: string; amount: number; count: number }[] {
+  const today = new Date(now);
+  today.setHours(23, 59, 59, 999);
   const map = new Map<string, { name: string; amount: number; count: number }>();
   for (const g of data.gastos) {
-    if (!g.proveedor) continue;
+    if (!g.proveedor || g.estado === 'Anulado') continue;
+    if (!g.fechaEmision || g.fechaEmision > today) continue;
     const entry = map.get(g.proveedor) || { name: g.proveedor, amount: 0, count: 0 };
     entry.amount += g.total;
     entry.count += 1;

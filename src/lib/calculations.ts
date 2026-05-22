@@ -19,9 +19,11 @@ export function ytdFilter<T extends { fecha?: Date | null; fechaEmision?: Date |
   now = new Date()
 ): T[] {
   const year = now.getFullYear();
+  const today = new Date(now);
+  today.setHours(23, 59, 59, 999);
   return items.filter((it) => {
     const d = (it as any).fecha || (it as any).fechaEmision;
-    return d instanceof Date && d.getFullYear() === year;
+    return d instanceof Date && d.getFullYear() === year && d <= today;
   });
 }
 
@@ -651,7 +653,7 @@ export function upcomingReceivables(data: FinancialData, days = 90, now = new Da
   today.setHours(0, 0, 0, 0);
   const limit = new Date(today);
   limit.setDate(limit.getDate() + days);
-  return data.ventas
+  return ventasActivas(data.ventas)
     .filter((v) => v.pendiente > 0 && v.vencimiento && v.vencimiento >= today && v.vencimiento <= limit)
     .sort((a, b) => (a.vencimiento!.getTime() - b.vencimiento!.getTime()));
 }
@@ -661,7 +663,7 @@ export function upcomingPayables(data: FinancialData, days = 90, now = new Date(
   today.setHours(0, 0, 0, 0);
   const limit = new Date(today);
   limit.setDate(limit.getDate() + days);
-  return data.gastos
+  return gastosActivos(data.gastos)
     .filter((g) => g.pendiente > 0 && g.vencimiento && g.vencimiento >= today && g.vencimiento <= limit)
     .sort((a, b) => (a.vencimiento!.getTime() - b.vencimiento!.getTime()));
 }
@@ -669,7 +671,7 @@ export function upcomingPayables(data: FinancialData, days = 90, now = new Date(
 export function overdueReceivables(data: FinancialData, now = new Date()): Venta[] {
   const today = new Date(now);
   today.setHours(0, 0, 0, 0);
-  return data.ventas
+  return ventasActivas(data.ventas)
     .filter((v) => v.pendiente > 0 && v.vencimiento && v.vencimiento.getTime() < today.getTime())
     .sort((a, b) => (a.vencimiento!.getTime() - b.vencimiento!.getTime()));
 }
@@ -677,7 +679,7 @@ export function overdueReceivables(data: FinancialData, now = new Date()): Venta
 export function overduePayables(data: FinancialData, now = new Date()): Gasto[] {
   const today = new Date(now);
   today.setHours(0, 0, 0, 0);
-  return data.gastos
+  return gastosActivos(data.gastos)
     .filter((g) => g.pendiente > 0 && g.vencimiento && g.vencimiento.getTime() < today.getTime())
     .sort((a, b) => (a.vencimiento!.getTime() - b.vencimiento!.getTime()));
 }

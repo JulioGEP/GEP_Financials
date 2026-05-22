@@ -31,6 +31,10 @@ function endOfDay(d: Date): Date {
   return r;
 }
 
+function minDate(a: Date, b: Date): Date {
+  return a.getTime() <= b.getTime() ? a : b;
+}
+
 function currentQuarter(month: number): number {
   return Math.floor(month / 3) + 1;
 }
@@ -59,15 +63,17 @@ export function getPeriodDateRange(
     case 'year_current':
       return {
         start: startOfDay(new Date(year, 0, 1)),
-        end: endOfDay(new Date(year, 11, 31)),
+        end: minDate(endOfDay(new Date(year, 11, 31)), endOfDay(now)),
       };
     case 'year_prev':
       return {
         start: startOfDay(new Date(year - 1, 0, 1)),
         end: endOfDay(new Date(year - 1, 11, 31)),
       };
-    case 'q_current':
-      return quarterRange(year, q);
+    case 'q_current': {
+      const qr = quarterRange(year, q);
+      return { start: qr.start, end: minDate(qr.end, endOfDay(now)) };
+    }
     case 'q_prev': {
       const prevQ = q === 1 ? 4 : q - 1;
       return quarterRange(q === 1 ? year - 1 : year, prevQ);
@@ -79,7 +85,7 @@ export function getPeriodDateRange(
     case 'month_current':
       return {
         start: startOfDay(new Date(year, month, 1)),
-        end: endOfDay(new Date(year, month + 1, 0)),
+        end: minDate(endOfDay(new Date(year, month + 1, 0)), endOfDay(now)),
       };
     case 'month_prev': {
       const pm = month === 0 ? 11 : month - 1;
@@ -94,7 +100,7 @@ export function getPeriodDateRange(
       monday.setDate(now.getDate() - daysFromMonday);
       const sunday = new Date(monday);
       sunday.setDate(monday.getDate() + 6);
-      return { start: startOfDay(monday), end: endOfDay(sunday) };
+      return { start: startOfDay(monday), end: minDate(endOfDay(sunday), endOfDay(now)) };
     }
     case 'week_prev': {
       const monday = new Date(now);
@@ -111,7 +117,7 @@ export function getPeriodDateRange(
     default:
       return {
         start: startOfDay(new Date(year, 0, 1)),
-        end: endOfDay(new Date(year, 11, 31)),
+        end: minDate(endOfDay(new Date(year, 11, 31)), endOfDay(now)),
       };
   }
 }
