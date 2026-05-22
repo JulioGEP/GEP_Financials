@@ -31,35 +31,52 @@ function getField(row: Record<string, string>, keys: string[]): string {
   return '';
 }
 
-function parseObjetivosCSV(csv: string): ObjetivoMensual[] {
+function parseObjetivosCSV(csv: string, targetYear?: number): ObjetivoMensual[] {
   const parsed = Papa.parse<Record<string, string>>(csv, {
     header: true,
     skipEmptyLines: true,
     transformHeader: (header) => header.trim(),
   });
 
-  // Detect which column holds month names: header may be "Mes", a year like "2026", etc.
-  const mesKey = (() => {
-    if (parsed.data.length === 0) return 'Mes';
-    const firstRow = parsed.data[0];
-    return (
-      Object.keys(firstRow).find((k) =>
-        MESES.includes((firstRow[k] || '').toLowerCase().trim())
-      ) ?? 'Mes'
-    );
-  })();
+  if (parsed.data.length === 0) return [];
 
-  return parsed.data
-    .map((row) => ({
-      mes: (row[mesKey] || '').trim(),
+  // The month column is often named after the year (e.g. "2026"). Detect it by
+  // finding the column whose first data row contains a month name.
+  const firstRow = parsed.data[0];
+  const mesKey = Object.keys(firstRow).find((k) =>
+    MESES.includes((firstRow[k] || '').toLowerCase().trim())
+  ) ?? 'Mes';
+
+  // The column name itself may encode the first section's year (e.g. "2026").
+  const headerYear = /^\d{4}$/.test(mesKey.trim()) ? parseInt(mesKey.trim(), 10) : null;
+  const resolvedTarget = targetYear ?? headerYear ?? new Date().getFullYear();
+
+  // Walk rows tracking which year-section we are in. A row whose mesKey value
+  // is a 4-digit year signals the start of a new section (not a month row).
+  let currentYear = headerYear ?? resolvedTarget;
+  const result: ObjetivoMensual[] = [];
+
+  for (const row of parsed.data) {
+    const mesValue = (row[mesKey] || '').trim();
+    if (/^\d{4}$/.test(mesValue)) {
+      currentYear = parseInt(mesValue, 10);
+      continue;
+    }
+    if (!MESES.includes(mesValue.toLowerCase())) continue;
+    if (currentYear !== resolvedTarget) continue;
+
+    result.push({
+      mes: mesValue,
       formacionAbierta: parseSpanishNumber(getField(row, ['Formación abierta', 'Formacion abierta', 'Formación Abierta', 'Formacion Abierta'])),
       formacionEmpresas: parseSpanishNumber(getField(row, ['Formación empresas', 'Formacion empresas', 'Formación Empresas', 'Formacion Empresas'])),
       material: parseSpanishNumber(getField(row, ['Material'])),
       gepServices: parseSpanishNumber(getField(row, ['Gep services', 'GEP services', 'Gep Services', 'GEP Services'])),
       pci: parseSpanishNumber(getField(row, ['PCI', 'Pci'])),
       total: parseSpanishNumber(getField(row, ['Total', 'TOTAL'])),
-    }))
-    .filter((row) => MESES.includes(row.mes.toLowerCase()));
+    });
+  }
+
+  return result;
 }
 
 async function fetchObjetivos(): Promise<{ rows: ObjetivoMensual[]; rawPreview: string }> {
@@ -75,7 +92,7 @@ async function fetchObjetivos(): Promise<{ rows: ObjetivoMensual[]; rawPreview: 
 
   const csv = json.data ?? '';
   const rawPreview = csv.slice(0, 300);
-  const rows = parseObjetivosCSV(csv);
+  const rows = parseObjetivosCSV(csv, new Date().getFullYear());
   return { rows, rawPreview };
 }
 
