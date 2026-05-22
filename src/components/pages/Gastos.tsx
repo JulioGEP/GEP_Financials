@@ -1,3 +1,4 @@
+import { useMemo, useState } from 'react';
 import {
   Bar,
   BarChart,
@@ -37,6 +38,7 @@ import {
   daysBetween,
 } from '../../lib/calculations';
 import { usePeriod } from '../../context/PeriodContext';
+import { EntityFilters, applyGastoFilters, getFilterOptions, type FilterState } from '../ui/EntityFilters';
 
 interface GastosProps {
   data: FinancialData | null;
@@ -62,12 +64,22 @@ function deltaDir(delta: number): 'up' | 'down' | 'neutral' {
 
 export function Gastos({ data, loading }: GastosProps) {
   const { dateRange, prevDateRange, label } = usePeriod();
+  const [filters, setFilters] = useState<FilterState>({
+    proveedor: '',
+    cliente: '',
+    tags: '',
+    cuenta: '',
+    proyecto: '',
+    estadoIngreso: '',
+    estadoGasto: '',
+  });
 
   if (loading || !data) return <GastosSkeleton />;
 
   const activos = gastosActivos(data.gastos);
-  const filtered = filterByDateRange(activos, dateRange, 'fechaEmision');
-  const prevFiltered = filterByDateRange(activos, prevDateRange, 'fechaEmision');
+  const options = useMemo(() => getFilterOptions(data.ventas, data.gastos), [data.ventas, data.gastos]);
+  const filtered = applyGastoFilters(filterByDateRange(activos, dateRange, 'fechaEmision'), filters);
+  const prevFiltered = applyGastoFilters(filterByDateRange(activos, prevDateRange, 'fechaEmision'), filters);
   const today = new Date();
   today.setHours(0, 0, 0, 0);
 
@@ -79,18 +91,19 @@ export function Gastos({ data, loading }: GastosProps) {
   const tasaPago = totalGastos > 0 ? (totalPagado / totalGastos) * 100 : 0;
 
   // Row 2 metrics (always-current — pending state)
-  const totalPendiente = sum(activos, (g) => g.pendiente);
-  const vencidosGastos = activos.filter(
+  const filteredActivos = applyGastoFilters(activos, filters);
+  const totalPendiente = sum(filteredActivos, (g) => g.pendiente);
+  const vencidosGastos = filteredActivos.filter(
     (g) => g.estado === 'Vencido' || (g.pendiente > 0 && g.vencimiento && g.vencimiento.getTime() < today.getTime())
   );
   const pendienteVencidoPago = sum(vencidosGastos, (g) => g.pendiente);
   const countVencidoPago = vencidosGastos.length;
-  const noVencidosGastos = activos.filter((g) => g.estado === 'Pendiente');
+  const noVencidosGastos = filteredActivos.filter((g) => g.estado === 'Pendiente');
   const pendienteNoVencidoPago = sum(noVencidosGastos, (g) => g.pendiente);
   const countNoVencidoPago = noVencidosGastos.length;
 
   // DPO (all-time)
-  const pagadas = activos.filter((g) => g.fechaEmision && g.fechaPago);
+  const pagadas = filteredActivos.filter((g) => g.fechaEmision && g.fechaPago);
   const dpo = pagadas.length
     ? Math.round(
         pagadas.reduce((acc, g) => acc + daysBetween(g.fechaEmision!, g.fechaPago!), 0) /
@@ -101,10 +114,10 @@ export function Gastos({ data, loading }: GastosProps) {
   const deltaGastos = pctDelta(totalGastos, prevTotalGastos);
 
   // Charts data
-  const estadoDist = estadoDistributionGastos(filtered.length > 0 ? filtered : activos);
-  const cuentas = topCuentasGastos(filtered.length > 0 ? filtered : activos, 8);
-  const proveedores = topProveedores(filtered.length > 0 ? filtered : activos, 8);
-  const { data: cuentaData, cuentas: topCuentas } = cuentaGastosForRange(data.gastos, dateRange, 5);
+  const estadoDist = estadoDistributionGastos(filtered.length > 0 ? filtered : filteredActivos);
+  const cuentas = topCuentasGastos(filtered.length > 0 ? filtered : filteredActivos, 8);
+  const proveedores = topProveedores(filtered.length > 0 ? filtered : filteredActivos, 8);
+  const { data: cuentaData, cuentas: topCuentas } = cuentaGastosForRange(filteredActivos, dateRange, 5);
 
   const columns: DataTableColumn<Gasto>[] = [
     {
@@ -165,6 +178,7 @@ export function Gastos({ data, loading }: GastosProps) {
 
   return (
     <div className="space-y-6">
+      <EntityFilters filters={filters} options={options} onChange={setFilters} />
 
       {/* Row 1 KPIs — period-filtered */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">

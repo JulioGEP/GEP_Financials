@@ -1,3 +1,4 @@
+import { useMemo, useState } from 'react';
 import {
   Bar,
   BarChart,
@@ -37,6 +38,7 @@ import {
 } from '../../lib/calculations';
 import { usePeriod } from '../../context/PeriodContext';
 import type { Venta } from '../../types/financial';
+import { EntityFilters, applyVentaFilters, getFilterOptions, type FilterState } from '../ui/EntityFilters';
 
 interface VentasProps {
   data: FinancialData | null;
@@ -60,12 +62,22 @@ function deltaDir(delta: number): 'up' | 'down' | 'neutral' {
 
 export function Ventas({ data, loading }: VentasProps) {
   const { dateRange, prevDateRange, label } = usePeriod();
+  const [filters, setFilters] = useState<FilterState>({
+    proveedor: '',
+    cliente: '',
+    tags: '',
+    cuenta: '',
+    proyecto: '',
+    estadoIngreso: '',
+    estadoGasto: '',
+  });
 
   if (loading || !data) return <VentasSkeleton />;
 
   const activas = ventasActivas(data.ventas);
-  const filtered = filterByDateRange(activas, dateRange, 'fecha');
-  const prevFiltered = filterByDateRange(activas, prevDateRange, 'fecha');
+  const options = useMemo(() => getFilterOptions(data.ventas, data.gastos), [data.ventas, data.gastos]);
+  const filtered = applyVentaFilters(filterByDateRange(activas, dateRange, 'fecha'), filters);
+  const prevFiltered = applyVentaFilters(filterByDateRange(activas, prevDateRange, 'fecha'), filters);
 
   // Row 1 metrics (period-filtered)
   const totalFacturado = sum(filtered, (v) => v.total);
@@ -143,6 +155,7 @@ export function Ventas({ data, loading }: VentasProps) {
 
   return (
     <div className="space-y-6">
+      <EntityFilters filters={filters} options={options} onChange={setFilters} />
 
       {/* Row 1 KPIs — period-filtered */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
