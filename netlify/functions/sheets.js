@@ -3,6 +3,8 @@
 
 const SHEET_ID =
   process.env.SHEET_ID || '1z04Eh_zt0GoDJhqPiGiWKdz66z_Y94yemUGfiKwUBwY';
+const OBJETIVOS_SHEET_ID =
+  process.env.OBJETIVOS_SHEET_ID || '1iknWcgkkIhJ7NvowHg61QqRnu6p-uQJB8B7kp-SJ9aU';
 const VENTAS_GID = process.env.VENTAS_GID || '0';
 const GASTOS_GID = process.env.GASTOS_GID || '1465840856';
 const OBJETIVOS_GID = process.env.OBJETIVOS_GID || '497424162';
@@ -26,7 +28,8 @@ exports.handler = async function (event) {
     : sheet === 'objetivos'
     ? OBJETIVOS_GID
     : VENTAS_GID;
-  const url = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/export?format=csv&gid=${gid}`;
+  const sheetId = sheet === 'objetivos' ? OBJETIVOS_SHEET_ID : SHEET_ID;
+  const url = `https://docs.google.com/spreadsheets/d/${sheetId}/export?format=csv&gid=${gid}`;
 
   try {
     const response = await fetch(url, {
@@ -41,6 +44,8 @@ exports.handler = async function (event) {
         body: JSON.stringify({
           error: `Upstream returned ${response.status}`,
           sheet,
+          sheetId,
+          gid,
           timestamp: new Date().toISOString(),
         }),
       };
