@@ -3,13 +3,17 @@ import { Calendar, ChevronDown, Check } from 'lucide-react';
 import { usePeriod } from '../../context/PeriodContext';
 import type { PeriodPreset } from '../../lib/periodUtils';
 
+function fmtDate(d: Date): string {
+  return `${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')}/${d.getFullYear()}`;
+}
+
 interface PresetOption {
   preset: PeriodPreset;
   label: string;
 }
 
 export function PeriodFilter() {
-  const { preset: active, label, setPreset } = usePeriod();
+  const { preset: active, label, dateRange, prevDateRange, setPreset } = usePeriod();
   const [open, setOpen] = useState(false);
   const [fromStr, setFromStr] = useState('');
   const [toStr, setToStr] = useState('');
@@ -126,6 +130,22 @@ export function PeriodFilter() {
               >
                 Aplicar rango personalizado
               </button>
+            </div>
+          </div>
+
+          <div className="border-t border-gray-100" />
+          <div className="bg-gray-50 rounded-lg px-3 py-2.5 space-y-1.5">
+            <div className="flex items-start justify-between gap-2">
+              <span className="text-[10px] uppercase tracking-wider font-semibold text-gray-400 shrink-0 mt-0.5">Período</span>
+              <span className="text-[11px] font-semibold text-gep-dark text-right">
+                {fmtDate(dateRange.start)} – {fmtDate(dateRange.end)}
+              </span>
+            </div>
+            <div className="flex items-start justify-between gap-2">
+              <span className="text-[10px] uppercase tracking-wider font-semibold text-gray-400 shrink-0 mt-0.5">Comparando</span>
+              <span className="text-[11px] text-gray-500 text-right">
+                {fmtDate(prevDateRange.start)} – {fmtDate(prevDateRange.end)}
+              </span>
             </div>
           </div>
         </div>
