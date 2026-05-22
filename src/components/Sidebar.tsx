@@ -8,6 +8,7 @@ import {
   CreditCard,
   Target,
 } from 'lucide-react';
+import gepGroupLogo from './ui/GEP-Group_Logotipo_horizontal.png';
 
 const NAV_ITEMS = [
   { to: '/', label: 'Resumen', icon: LayoutDashboard, exact: true },
@@ -23,16 +24,12 @@ export function Sidebar() {
   return (
     <aside className="w-64 shrink-0 bg-gep-dark text-white flex flex-col min-h-screen">
       <div className="px-6 py-6 border-b border-white/10">
-        <div className="flex items-center gap-3">
-          <div className="w-9 h-9 rounded-md bg-gep-red flex items-center justify-center font-bold text-lg">
-            G
-          </div>
-          <div>
-            <div className="font-bold text-base leading-tight">GEP Financials</div>
-            <div className="text-[11px] text-white/60 font-light leading-tight">
-              Panel financiero
-            </div>
-          </div>
+        <div className="h-12 flex items-center">
+          <img
+            src={gepGroupLogo}
+            alt="GEP Group"
+            className="max-h-10 w-full object-contain object-left"
+          />
         </div>
       </div>
       <nav className="flex-1 py-4">
