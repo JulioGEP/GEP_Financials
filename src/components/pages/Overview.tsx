@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useMemo } from 'react';
 import {
   Bar,
   BarChart,
@@ -43,6 +44,7 @@ import {
 } from '../../lib/calculations';
 import { generateAlerts } from '../../lib/alerts';
 import { usePeriod } from '../../context/PeriodContext';
+import { EntityFilters, applyGastoFilters, applyVentaFilters, getFilterOptions, type FilterState } from '../ui/EntityFilters';
 
 interface OverviewProps {
   data: FinancialData | null;
@@ -754,20 +756,29 @@ function DpoModal({ gastos }: { gastos: Gasto[] }) {
 export function Overview({ data, loading }: OverviewProps) {
   const { dateRange, prevDateRange, label } = usePeriod();
   const [openModal, setOpenModal] = useState<MetricKey | null>(null);
+  const [filters, setFilters] = useState<FilterState>({
+    proveedor: '',
+    cliente: '',
+    tags: '',
+    cuenta: '',
+    proyecto: '',
+    estadoIngreso: '',
+    estadoGasto: '',
+  });
 
   if (loading || !data) {
     return <OverviewSkeleton />;
   }
 
-  const kpis = computeOverviewKpis(data, dateRange);
-  const prevKpis = computeOverviewKpis(data, prevDateRange);
-  const monthly = monthlyDataForRange(data, dateRange);
-  const cashFlow = cashFlowDataForRange(data, dateRange);
-  const alerts = generateAlerts(data).slice(0, 4);
-
-  // Period-filtered sets
-  const allActiveVentas = ventasActivas(data.ventas);
-  const allActiveGastos = gastosActivos(data.gastos);
+  const options = useMemo(() => getFilterOptions(data.ventas, data.gastos), [data.ventas, data.gastos]);
+  const allActiveVentas = applyVentaFilters(ventasActivas(data.ventas), filters);
+  const allActiveGastos = applyGastoFilters(gastosActivos(data.gastos), filters);
+  const scopedData = { ...data, ventas: allActiveVentas, gastos: allActiveGastos };
+  const kpis = computeOverviewKpis(scopedData, dateRange);
+  const prevKpis = computeOverviewKpis(scopedData, prevDateRange);
+  const monthly = monthlyDataForRange(scopedData, dateRange);
+  const cashFlow = cashFlowDataForRange(scopedData, dateRange);
+  const alerts = generateAlerts(scopedData).slice(0, 4);
   const ventasPeriod = filterByDateRange(allActiveVentas, dateRange);
   const gastosPeriod = filterByDateRange(allActiveGastos, dateRange, 'fechaEmision');
 
@@ -847,6 +858,7 @@ export function Overview({ data, loading }: OverviewProps) {
 
   return (
     <div className="space-y-6">
+      <EntityFilters filters={filters} options={options} onChange={setFilters} />
 
       {/* Active modal */}
       {openModal && (
