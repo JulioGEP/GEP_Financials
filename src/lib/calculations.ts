@@ -40,6 +40,14 @@ export function gastosActivos(gastos: Gasto[]): Gasto[] {
   return gastos.filter(g => g.estado !== 'Anulado');
 }
 
+// Identifies gastos de personal (group 64 PGC: sueldos, SS empresa, indemnizaciones...)
+// Also detects via tags: nómina, salario, personal, RRHH
+export function isGastoPersonal(g: Gasto): boolean {
+  if (g.cuenta && /^64\d/i.test(g.cuenta.trim())) return true;
+  if (g.tags && g.tags.some(t => /^(n[oó]mina|salario|personal|rrhh|ss empresa|seg\.? social)$/i.test(t.trim()))) return true;
+  return false;
+}
+
 export interface OverviewKpis {
   ingresosYTD: number;
   gastosYTD: number;
@@ -47,9 +55,12 @@ export interface OverviewKpis {
   posicionCaja: number;
   pendienteCobrar: number;
   pendientePagar: number;
+  pendienteProveedores: number;
+  pendientePersonal: number;
+  pendienteProveedoresVencido: number;
+  pendientePersonalVencido: number;
   facturasVencidas: number;
   diasCobroMedio: number;
-  // New fields
   ingresosNetoYTD: number;
   gastosNetoYTD: number;
   margenPct: number;
@@ -119,6 +130,12 @@ export function computeOverviewKpis(data: FinancialData, dateRange?: DateRange, 
   const pendienteCobrar = sum(activeVentas, (v) => v.pendiente);
   const pendientePagar = sum(activeGastos, (g) => g.pendiente);
 
+  // Split pending payables: proveedores vs personal
+  const gastosPersonal = activeGastos.filter(isGastoPersonal);
+  const gastosProveedores = activeGastos.filter(g => !isGastoPersonal(g));
+  const pendientePersonal = sum(gastosPersonal, (g) => g.pendiente);
+  const pendienteProveedores = sum(gastosProveedores, (g) => g.pendiente);
+
   // Overdue receivables
   const pendienteCobrarVencido = sum(
     activeVentas.filter(v => v.estado === 'Vencido'),
@@ -130,6 +147,15 @@ export function computeOverviewKpis(data: FinancialData, dateRange?: DateRange, 
     g => g.estado === 'Vencido' || (g.pendiente > 0 && g.vencimiento && g.vencimiento.getTime() < today.getTime())
   );
   const pendientePagarVencido = sum(overdueGastos, (g) => g.pendiente);
+
+  const overdueProveedores = gastosProveedores.filter(
+    g => g.estado === 'Vencido' || (g.pendiente > 0 && g.vencimiento && g.vencimiento.getTime() < today.getTime())
+  );
+  const overduePersonal = gastosPersonal.filter(
+    g => g.estado === 'Vencido' || (g.pendiente > 0 && g.vencimiento && g.vencimiento.getTime() < today.getTime())
+  );
+  const pendienteProveedoresVencido = sum(overdueProveedores, (g) => g.pendiente);
+  const pendientePersonalVencido = sum(overduePersonal, (g) => g.pendiente);
 
   const workingCapital = pendienteCobrar - pendientePagar;
 
@@ -174,6 +200,10 @@ export function computeOverviewKpis(data: FinancialData, dateRange?: DateRange, 
     posicionCaja,
     pendienteCobrar,
     pendientePagar,
+    pendienteProveedores,
+    pendientePersonal,
+    pendienteProveedoresVencido,
+    pendientePersonalVencido,
     facturasVencidas,
     diasCobroMedio: Math.round(dso),
     ingresosNetoYTD,
