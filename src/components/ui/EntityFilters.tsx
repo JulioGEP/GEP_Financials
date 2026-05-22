@@ -75,11 +75,7 @@ export function EntityFilters({ filters, options, onChange }: EntityFiltersProps
 
   return (
     <section className="rounded-2xl border border-gray-200 bg-white p-4 sm:p-5 shadow-sm">
-      <div className="mb-4 flex items-center justify-between gap-3">
-        <div>
-          <h2 className="text-sm font-semibold text-gep-dark">Filtros avanzados</h2>
-          <p className="text-xs text-gray-500">Afectan métricas, gráficos y tablas de esta página.</p>
-        </div>
+      <div className="mb-3 flex justify-end">
         <button
           type="button"
           onClick={clearAll}
