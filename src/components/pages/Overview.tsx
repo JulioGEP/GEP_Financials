@@ -30,26 +30,52 @@ import { AlertCard } from '../ui/AlertCard';
 import { formatCurrency } from '../../lib/parseData';
 import {
   computeOverviewKpis,
-  monthlyRevenueVsExpenses,
-  monthlyCobrosYPagos,
+  monthlyDataForRange,
+  cashFlowDataForRange,
 } from '../../lib/calculations';
 import { generateAlerts } from '../../lib/alerts';
+import { usePeriod } from '../../context/PeriodContext';
 
 interface OverviewProps {
   data: FinancialData | null;
   loading: boolean;
 }
 
+function pctDelta(current: number, prev: number): number {
+  if (prev === 0) return current === 0 ? 0 : 100;
+  return ((current - prev) / Math.abs(prev)) * 100;
+}
+
+function deltaDirection(delta: number): 'up' | 'down' | 'neutral' {
+  if (delta > 0.5) return 'up';
+  if (delta < -0.5) return 'down';
+  return 'neutral';
+}
+
+function fmtDelta(delta: number): string {
+  const sign = delta >= 0 ? '+' : '';
+  return `${sign}${delta.toFixed(1)}%`;
+}
+
 export function Overview({ data, loading }: OverviewProps) {
+  const { dateRange, prevDateRange, label } = usePeriod();
+
   if (loading || !data) {
     return <OverviewSkeleton />;
   }
 
-  const kpis = computeOverviewKpis(data);
-  const monthly = monthlyRevenueVsExpenses(data, 12);
-  const cashFlow = monthlyCobrosYPagos(data, 12);
+  const kpis = computeOverviewKpis(data, dateRange);
+  const prevKpis = computeOverviewKpis(data, prevDateRange);
+  const monthly = monthlyDataForRange(data, dateRange);
+  const cashFlow = cashFlowDataForRange(data, dateRange);
   const alerts = generateAlerts(data).slice(0, 4);
-  const year = new Date().getFullYear();
+
+  // Deltas for comparison
+  const deltaIngresos = pctDelta(kpis.ingresosYTD, prevKpis.ingresosYTD);
+  const deltaGastos = pctDelta(kpis.gastosYTD, prevKpis.gastosYTD);
+  const deltaResultado = pctDelta(kpis.resultadoNeto, prevKpis.resultadoNeto);
+  const deltaIvaRep = pctDelta(kpis.ivaRepercutido, prevKpis.ivaRepercutido);
+  const deltaIvaSop = pctDelta(kpis.ivaSoportado, prevKpis.ivaSoportado);
 
   return (
     <div className="space-y-6">
@@ -57,23 +83,33 @@ export function Overview({ data, loading }: OverviewProps) {
       {/* Row 1 - P&L Hero */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
         <KpiCard
-          title="Facturación YTD"
+          title="Facturación"
           value={formatCurrency(kpis.ingresosYTD)}
-          subtitle={`IVA incluido · Año ${year}`}
+          subtitle={`IVA incluido · ${label}`}
           icon={<TrendingUp className="w-5 h-5" />}
           color="green"
           emphasis
           trend={`Neto: ${formatCurrency(kpis.ingresosNetoYTD)}`}
           trendDirection="neutral"
+          comparison={{
+            prevValue: formatCurrency(prevKpis.ingresosYTD),
+            delta: fmtDelta(deltaIngresos),
+            direction: deltaDirection(deltaIngresos),
+          }}
         />
         <KpiCard
-          title="Gastos YTD"
+          title="Gastos"
           value={formatCurrency(kpis.gastosYTD)}
-          subtitle={`IVA incluido · Año ${year}`}
+          subtitle={`IVA incluido · ${label}`}
           icon={<TrendingDown className="w-5 h-5" />}
           color="red"
           trend={`Neto: ${formatCurrency(kpis.gastosNetoYTD)}`}
           trendDirection="neutral"
+          comparison={{
+            prevValue: formatCurrency(prevKpis.gastosYTD),
+            delta: fmtDelta(deltaGastos),
+            direction: deltaDirection(deltaGastos),
+          }}
         />
         <KpiCard
           title="Resultado Neto"
@@ -84,6 +120,11 @@ export function Overview({ data, loading }: OverviewProps) {
           emphasis
           trend={`${kpis.margenPct.toFixed(1)}% margen operativo`}
           trendDirection={kpis.resultadoNeto >= 0 ? 'up' : 'down'}
+          comparison={{
+            prevValue: formatCurrency(prevKpis.resultadoNeto),
+            delta: fmtDelta(deltaResultado),
+            direction: deltaDirection(deltaResultado),
+          }}
         />
       </div>
 
@@ -160,7 +201,7 @@ export function Overview({ data, loading }: OverviewProps) {
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         <ChartCard
           title="Ingresos vs Gastos"
-          subtitle="Facturas emitidas · Últimos 12 meses"
+          subtitle={`Facturas emitidas · ${label}`}
         >
           <ResponsiveContainer width="100%" height={300}>
             <BarChart data={monthly} margin={{ top: 5, right: 5, left: 0, bottom: 0 }}>
@@ -184,7 +225,7 @@ export function Overview({ data, loading }: OverviewProps) {
 
         <ChartCard
           title="Tesorería Real"
-          subtitle="Cobros y pagos efectivamente realizados"
+          subtitle={`Cobros y pagos efectivamente realizados · ${label}`}
         >
           <ResponsiveContainer width="100%" height={300}>
             <ComposedChart data={cashFlow} margin={{ top: 5, right: 5, left: 0, bottom: 0 }}>
@@ -219,18 +260,34 @@ export function Overview({ data, loading }: OverviewProps) {
       {/* Row 5 - IVA Balance */}
       <div className="card p-5 bg-gray-50">
         <h3 className="text-xs uppercase tracking-wider font-semibold text-gray-500 mb-4">
-          Balance IVA · Año {year}
+          Balance IVA · {label}
         </h3>
         <div className="grid grid-cols-3 gap-6">
           <div>
             <div className="text-xs text-gray-500 mb-1">IVA Repercutido</div>
             <div className="font-bold text-lg text-gep-dark">{formatCurrency(kpis.ivaRepercutido)}</div>
             <div className="text-xs text-gray-400">IVA cobrado a clientes</div>
+            {prevKpis.ivaRepercutido > 0 && (
+              <div className="text-[11px] text-gray-400 mt-0.5">
+                vs. año ant.: {formatCurrency(prevKpis.ivaRepercutido)}
+                <span className={`ml-1 font-semibold ${deltaIvaRep >= 0 ? 'text-green-600' : 'text-gep-red'}`}>
+                  {deltaIvaRep >= 0 ? '▲' : '▼'} {fmtDelta(deltaIvaRep)}
+                </span>
+              </div>
+            )}
           </div>
           <div>
             <div className="text-xs text-gray-500 mb-1">IVA Soportado</div>
             <div className="font-bold text-lg text-gep-dark">{formatCurrency(kpis.ivaSoportado)}</div>
             <div className="text-xs text-gray-400">IVA pagado a proveedores</div>
+            {prevKpis.ivaSoportado > 0 && (
+              <div className="text-[11px] text-gray-400 mt-0.5">
+                vs. año ant.: {formatCurrency(prevKpis.ivaSoportado)}
+                <span className={`ml-1 font-semibold ${deltaIvaSop >= 0 ? 'text-green-600' : 'text-gep-red'}`}>
+                  {deltaIvaSop >= 0 ? '▲' : '▼'} {fmtDelta(deltaIvaSop)}
+                </span>
+              </div>
+            )}
           </div>
           <div>
             <div className="text-xs text-gray-500 mb-1">Saldo IVA a ingresar</div>

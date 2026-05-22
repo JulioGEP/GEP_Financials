@@ -6,11 +6,13 @@ import { Ventas } from './components/pages/Ventas';
 import { Gastos } from './components/pages/Gastos';
 import { CashFlow } from './components/pages/CashFlow';
 import { Alertas } from './components/pages/Alertas';
+import { PeriodProvider } from './context/PeriodContext';
 
 export default function App() {
   const { data, loading, isRefreshing, refresh } = useFinancialData();
 
   return (
+    <PeriodProvider>
     <Routes>
       <Route
         path="/"
@@ -83,5 +85,6 @@ export default function App() {
         }
       />
     </Routes>
+    </PeriodProvider>
   );
 }
