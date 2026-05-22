@@ -1,3 +1,5 @@
+import { useState } from 'react';
+import { ChevronDown } from 'lucide-react';
 import type { Gasto, Venta } from '../../types/financial';
 
 interface FilterState {
@@ -55,6 +57,7 @@ function SelectField({
 }
 
 export function EntityFilters({ filters, options, onChange }: EntityFiltersProps) {
+  const [isExpanded, setIsExpanded] = useState(false);
   const activeCount = Object.values(filters).filter(Boolean).length;
 
   const setField = (key: keyof FilterState, value: string) => {
@@ -75,26 +78,37 @@ export function EntityFilters({ filters, options, onChange }: EntityFiltersProps
 
   return (
     <section className="rounded-2xl border border-gray-200 bg-white p-4 sm:p-5 shadow-sm">
-      <div className="mb-3 flex justify-end">
+      <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+        <button
+          type="button"
+          onClick={() => setIsExpanded((prev) => !prev)}
+          className="inline-flex items-center gap-2 rounded-lg border border-gray-200 px-3 py-1.5 text-xs font-semibold text-gray-700 transition hover:bg-gray-50"
+        >
+          Filtros {activeCount > 0 ? `(${activeCount})` : ''}
+          <ChevronDown className={`h-4 w-4 transition-transform ${isExpanded ? 'rotate-180' : ''}`} />
+        </button>
+
         <button
           type="button"
           onClick={clearAll}
           disabled={activeCount === 0}
           className="rounded-lg border border-gray-200 px-3 py-1.5 text-xs font-semibold text-gray-600 transition hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50"
         >
-          Limpiar filtros {activeCount > 0 ? `(${activeCount})` : ''}
+          Limpiar filtros
         </button>
       </div>
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-3">
-        <SelectField label="Proveedor" value={filters.proveedor} options={options.proveedores} onChange={(v) => setField('proveedor', v)} />
-        <SelectField label="Cliente" value={filters.cliente} options={options.clientes} onChange={(v) => setField('cliente', v)} />
-        <SelectField label="Tags" value={filters.tags} options={options.tags} onChange={(v) => setField('tags', v)} />
-        <SelectField label="Cuenta" value={filters.cuenta} options={options.cuentas} onChange={(v) => setField('cuenta', v)} />
-        <SelectField label="Proyecto" value={filters.proyecto} options={options.proyectos} onChange={(v) => setField('proyecto', v)} />
-        <SelectField label="Estado ingreso" value={filters.estadoIngreso} options={options.estadosIngreso} onChange={(v) => setField('estadoIngreso', v)} />
-        <SelectField label="Estado gasto" value={filters.estadoGasto} options={options.estadosGasto} onChange={(v) => setField('estadoGasto', v)} />
-      </div>
+      {isExpanded && (
+        <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-3">
+          <SelectField label="Proveedor" value={filters.proveedor} options={options.proveedores} onChange={(v) => setField('proveedor', v)} />
+          <SelectField label="Cliente" value={filters.cliente} options={options.clientes} onChange={(v) => setField('cliente', v)} />
+          <SelectField label="Tags" value={filters.tags} options={options.tags} onChange={(v) => setField('tags', v)} />
+          <SelectField label="Cuenta" value={filters.cuenta} options={options.cuentas} onChange={(v) => setField('cuenta', v)} />
+          <SelectField label="Proyecto" value={filters.proyecto} options={options.proyectos} onChange={(v) => setField('proyecto', v)} />
+          <SelectField label="Estado ingreso" value={filters.estadoIngreso} options={options.estadosIngreso} onChange={(v) => setField('estadoIngreso', v)} />
+          <SelectField label="Estado gasto" value={filters.estadoGasto} options={options.estadosGasto} onChange={(v) => setField('estadoGasto', v)} />
+        </div>
+      )}
     </section>
   );
 }

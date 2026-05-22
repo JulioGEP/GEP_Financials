@@ -24,12 +24,13 @@ export function Sidebar() {
   return (
     <aside className="w-64 shrink-0 bg-gep-dark text-white flex flex-col min-h-screen">
       <div className="px-6 py-6 border-b border-white/10">
-        <div className="h-12 flex items-center">
+        <div className="h-12 flex items-center gap-3">
           <img
             src={gepGroupLogo}
             alt="GEP Group"
             className="h-11 w-auto object-contain object-left"
           />
+          <span className="text-xl font-semibold tracking-wide text-white">Financials</span>
         </div>
       </div>
       <nav className="flex-1 py-4">
