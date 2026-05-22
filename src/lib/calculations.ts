@@ -45,11 +45,14 @@ export interface OverviewKpis {
   gastosYTD: number;
   resultadoNeto: number;
   posicionCaja: number;
+  saldoDisponible: number | null;  // sum of positive bank accounts
+  deudaFinanciera: number | null;  // sum of negative bank accounts (loans)
+  posicionNetaBancaria: number | null; // net of all bank accounts
+  hasBankData: boolean;
   pendienteCobrar: number;
   pendientePagar: number;
   facturasVencidas: number;
   diasCobroMedio: number;
-  // New fields
   ingresosNetoYTD: number;
   gastosNetoYTD: number;
   margenPct: number;
@@ -78,9 +81,26 @@ export function filterByDateRange<T extends { fecha?: Date | null; fechaEmision?
   });
 }
 
+/** Net sum of all bank accounts (positive + negative). Returns null if no data. */
 export function bankBalance(data: FinancialData): number | null {
   if (!data.bankAccounts || data.bankAccounts.length === 0) return null;
   return data.bankAccounts.reduce((acc, a) => acc + (a.balance ?? 0), 0);
+}
+
+/** Sum of accounts with positive balance (spendable cash). Returns null if no data. */
+export function bankBalanceActive(data: FinancialData): number | null {
+  if (!data.bankAccounts || data.bankAccounts.length === 0) return null;
+  return data.bankAccounts
+    .filter((a) => (a.balance ?? 0) > 0)
+    .reduce((acc, a) => acc + a.balance, 0);
+}
+
+/** Sum of accounts with negative balance (loans, credit lines, overdrafts). Returns null if no data. */
+export function bankBalanceDebt(data: FinancialData): number | null {
+  if (!data.bankAccounts || data.bankAccounts.length === 0) return null;
+  return data.bankAccounts
+    .filter((a) => (a.balance ?? 0) < 0)
+    .reduce((acc, a) => acc + a.balance, 0);
 }
 
 export function computeOverviewKpis(data: FinancialData, dateRange?: DateRange, now = new Date()): OverviewKpis {
@@ -109,11 +129,15 @@ export function computeOverviewKpis(data: FinancialData, dateRange?: DateRange, 
   const resultadoNeto = ingresosNetoYTD - gastosNetoYTD;
   const margenPct = ingresosNetoYTD > 0 ? (resultadoNeto / ingresosNetoYTD) * 100 : 0;
 
-  // Cash position: prefer real bank balances from Holded; fall back to cobrado-pagado
+  // Cash position: prefer real available bank balance (positive accounts only);
+  // fall back to cobrado-pagado when no bank data
   const totalCobrado = sum(activeVentas, (v) => v.cobrado);
   const totalPagado = sum(activeGastos, (g) => g.pagado);
-  const realBankBalance = bankBalance(data);
-  const posicionCaja = realBankBalance !== null ? realBankBalance : totalCobrado - totalPagado;
+  const saldoDisponible = bankBalanceActive(data);
+  const deudaFinanciera = bankBalanceDebt(data);
+  const posicionNetaBancaria = bankBalance(data);
+  const hasBankData = saldoDisponible !== null;
+  const posicionCaja = saldoDisponible !== null ? saldoDisponible : totalCobrado - totalPagado;
 
   // Pending (all active, not just YTD)
   const pendienteCobrar = sum(activeVentas, (v) => v.pendiente);
@@ -172,6 +196,10 @@ export function computeOverviewKpis(data: FinancialData, dateRange?: DateRange, 
     gastosYTD: gastosTotalYTD,
     resultadoNeto,
     posicionCaja,
+    saldoDisponible,
+    deudaFinanciera,
+    posicionNetaBancaria,
+    hasBankData,
     pendienteCobrar,
     pendientePagar,
     facturasVencidas,
@@ -599,9 +627,10 @@ export function projectedCashFlow(
   const today = new Date(now);
   today.setHours(0, 0, 0, 0);
 
-  const realBankBal = bankBalance(data);
-  const currentCash = realBankBal !== null
-    ? realBankBal
+  // Use available balance (positive accounts) as cash starting point, not net (which includes loans)
+  const activeBal = bankBalanceActive(data);
+  const currentCash = activeBal !== null
+    ? activeBal
     : sum(data.ventas, (v) => v.cobrado) - sum(data.gastos, (g) => g.pagado);
 
   const points: CashFlowProjection[] = [];
