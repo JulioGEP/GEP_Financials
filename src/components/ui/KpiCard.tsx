@@ -54,25 +54,25 @@ export function KpiCard({
       tabIndex={onClick ? 0 : undefined}
       onClick={onClick}
       onKeyDown={onClick ? (e) => { if (e.key === 'Enter' || e.key === ' ') onClick(); } : undefined}
-      className={`card card-hover p-5 border-l-4 ${
+      className={`card card-hover p-4 border-l-4 ${
         emphasis ? 'border-l-gep-red' : COLOR_BORDERS[color]
-      } flex items-start justify-between gap-3 ${
+      } flex items-start justify-between gap-2 ${
         onClick ? 'cursor-pointer select-none' : ''
       }`}
     >
       <div className="min-w-0 flex-1">
-        <div className="text-xs uppercase tracking-wider font-semibold text-gray-500 truncate">
+        <div className="text-[10px] uppercase tracking-wider font-semibold text-gray-500 leading-tight">
           {title}
         </div>
-        <div className="mt-2 font-bold text-2xl text-gep-dark leading-tight break-words">
+        <div className="mt-1.5 font-bold text-lg text-gep-dark leading-tight break-words">
           {value}
         </div>
         {subtitle && (
-          <div className="mt-1 text-sm font-light text-gray-500">{subtitle}</div>
+          <div className="mt-0.5 text-xs font-light text-gray-500 leading-snug">{subtitle}</div>
         )}
         {trend && (
           <div
-            className={`mt-2 inline-flex items-center gap-1 text-xs font-semibold ${
+            className={`mt-1.5 inline-flex items-center gap-1 text-[11px] font-semibold ${
               trendDirection === 'up'
                 ? 'text-green-600'
                 : trendDirection === 'down'
@@ -87,7 +87,7 @@ export function KpiCard({
           </div>
         )}
         {comparison && (
-          <div className="mt-1.5 flex items-center gap-1 text-[11px] text-gray-400">
+          <div className="mt-1 flex items-center gap-1 text-[10px] text-gray-400 flex-wrap">
             <span>vs. año ant.:</span>
             <span className="font-medium text-gray-500">{comparison.prevValue}</span>
             <span
@@ -107,7 +107,7 @@ export function KpiCard({
         )}
       </div>
       {icon && (
-        <div className={`shrink-0 rounded-lg p-2.5 ${ICON_BG[color]}`}>{icon}</div>
+        <div className={`shrink-0 rounded-lg p-2 ${ICON_BG[color]}`}>{icon}</div>
       )}
     </div>
   );
