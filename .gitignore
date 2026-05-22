@@ -1,0 +1,14 @@
+node_modules
+dist
+.claude
+dist-ssr
+.env
+.env.local
+.env.*.local
+.netlify
+.DS_Store
+*.local
+*.log
+.vscode/*
+!.vscode/extensions.json
+.idea
