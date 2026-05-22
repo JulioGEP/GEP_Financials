@@ -40,6 +40,14 @@ export function gastosActivos(gastos: Gasto[]): Gasto[] {
   return gastos.filter(g => g.estado !== 'Anulado');
 }
 
+// Projects permanently excluded from all expense metrics
+export const PROYECTOS_EXCLUIDOS_GASTOS: string[] = ['TKEF'];
+
+export function excluirProyectosGastos(gastos: Gasto[]): Gasto[] {
+  const excluded = new Set(PROYECTOS_EXCLUIDOS_GASTOS.map(p => p.toUpperCase()));
+  return gastos.filter(g => !excluded.has((g.proyecto || '').trim().toUpperCase()));
+}
+
 // Identifies gastos de personal (group 64 PGC: sueldos, SS empresa, indemnizaciones...)
 // Also detects via tags: nómina, salario, personal, RRHH
 export function isGastoPersonal(g: Gasto): boolean {

@@ -3,6 +3,7 @@ import { config } from '../config';
 import type { BankAccount, FinancialData } from '../types/financial';
 import { parseVentasCSV, parseGastosCSV } from './parseData';
 import { generateMockVentas, generateMockGastos } from './mockData';
+import { excluirProyectosGastos } from './calculations';
 
 async function fetchSheet(sheet: 'ventas' | 'gastos'): Promise<string> {
   const res = await fetch(`${config.apiBase}/sheets?sheet=${sheet}`, {
@@ -38,13 +39,13 @@ export async function fetchFinancialData(): Promise<FinancialData> {
       fetchBankAccounts(),
     ]);
     const ventas = parseVentasCSV(ventasCSV);
-    const gastos = parseGastosCSV(gastosCSV);
+    const gastos = excluirProyectosGastos(parseGastosCSV(gastosCSV));
 
     // If parsing yielded nothing useful, fall back to mock so UI still renders.
     if (ventas.length === 0 && gastos.length === 0) {
       return {
         ventas: generateMockVentas(),
-        gastos: generateMockGastos(),
+        gastos: excluirProyectosGastos(generateMockGastos()),
         bankAccounts,
         lastUpdated: new Date(),
         source: 'mock',
@@ -62,7 +63,7 @@ export async function fetchFinancialData(): Promise<FinancialData> {
     console.warn('[GEP] API fetch failed, falling back to mock data:', err);
     return {
       ventas: generateMockVentas(),
-      gastos: generateMockGastos(),
+      gastos: excluirProyectosGastos(generateMockGastos()),
       bankAccounts: [],
       lastUpdated: new Date(),
       source: 'mock',
