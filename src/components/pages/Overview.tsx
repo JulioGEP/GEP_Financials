@@ -2,9 +2,9 @@ import {
   Bar,
   BarChart,
   CartesianGrid,
+  ComposedChart,
   Legend,
   Line,
-  LineChart,
   ResponsiveContainer,
   Tooltip,
   XAxis,
@@ -15,10 +15,13 @@ import {
   TrendingDown,
   Activity,
   Wallet,
-  Clock,
-  AlertOctagon,
+  Scale,
   Hourglass,
   ReceiptText,
+  AlertOctagon,
+  AlertTriangle,
+  Clock,
+  CalendarCheck,
 } from 'lucide-react';
 import type { FinancialData } from '../../types/financial';
 import { KpiCard, KpiCardSkeleton } from '../ui/KpiCard';
@@ -28,7 +31,7 @@ import { formatCurrency } from '../../lib/parseData';
 import {
   computeOverviewKpis,
   monthlyRevenueVsExpenses,
-  cashPositionTrend,
+  monthlyCobrosYPagos,
 } from '../../lib/calculations';
 import { generateAlerts } from '../../lib/alerts';
 
@@ -44,82 +47,120 @@ export function Overview({ data, loading }: OverviewProps) {
 
   const kpis = computeOverviewKpis(data);
   const monthly = monthlyRevenueVsExpenses(data, 12);
-  const cashTrend = cashPositionTrend(data, 12);
-  const alerts = generateAlerts(data).slice(0, 3);
+  const cashFlow = monthlyCobrosYPagos(data, 12);
+  const alerts = generateAlerts(data).slice(0, 4);
+  const year = new Date().getFullYear();
 
   return (
     <div className="space-y-6">
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+
+      {/* Row 1 - P&L Hero */}
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
         <KpiCard
-          title="Ingresos YTD"
+          title="Facturación YTD"
           value={formatCurrency(kpis.ingresosYTD)}
-          subtitle={`Año ${new Date().getFullYear()}`}
+          subtitle={`IVA incluido · Año ${year}`}
           icon={<TrendingUp className="w-5 h-5" />}
           color="green"
           emphasis
+          trend={`Neto: ${formatCurrency(kpis.ingresosNetoYTD)}`}
+          trendDirection="neutral"
         />
         <KpiCard
           title="Gastos YTD"
           value={formatCurrency(kpis.gastosYTD)}
-          subtitle={`Año ${new Date().getFullYear()}`}
+          subtitle={`IVA incluido · Año ${year}`}
           icon={<TrendingDown className="w-5 h-5" />}
           color="red"
+          trend={`Neto: ${formatCurrency(kpis.gastosNetoYTD)}`}
+          trendDirection="neutral"
         />
         <KpiCard
           title="Resultado Neto"
           value={formatCurrency(kpis.resultadoNeto)}
-          subtitle="Ingresos - Gastos"
+          subtitle={`Margen: ${kpis.margenPct.toFixed(1)}%`}
           icon={<Activity className="w-5 h-5" />}
           color={kpis.resultadoNeto >= 0 ? 'green' : 'red'}
-          trend={
-            kpis.ingresosYTD > 0
-              ? `${((kpis.resultadoNeto / kpis.ingresosYTD) * 100).toFixed(1)}% margen`
-              : undefined
-          }
+          emphasis
+          trend={`${kpis.margenPct.toFixed(1)}% margen operativo`}
           trendDirection={kpis.resultadoNeto >= 0 ? 'up' : 'down'}
-        />
-        <KpiCard
-          title="Posición de Caja"
-          value={formatCurrency(kpis.posicionCaja)}
-          subtitle="Cobrado - Pagado"
-          icon={<Wallet className="w-5 h-5" />}
-          color={kpis.posicionCaja >= 0 ? 'blue' : 'red'}
         />
       </div>
 
+      {/* Row 2 - Tesorería */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        <KpiCard
+          title="Posición de Caja"
+          value={formatCurrency(kpis.posicionCaja)}
+          subtitle="Cobrado - Pagado real"
+          icon={<Wallet className="w-5 h-5" />}
+          color={kpis.posicionCaja >= 0 ? 'blue' : 'red'}
+          emphasis
+        />
+        <KpiCard
+          title="Capital de Trabajo"
+          value={formatCurrency(kpis.workingCapital)}
+          subtitle="Cobros - Pagos pendientes"
+          icon={<Scale className="w-5 h-5" />}
+          color={kpis.workingCapital >= 0 ? 'green' : 'red'}
+        />
         <KpiCard
           title="Pendiente Cobrar"
           value={formatCurrency(kpis.pendienteCobrar)}
+          subtitle={`Del que vencido: ${formatCurrency(kpis.pendienteCobrarVencido)}`}
           icon={<Hourglass className="w-5 h-5" />}
           color="amber"
         />
         <KpiCard
           title="Pendiente Pagar"
           value={formatCurrency(kpis.pendientePagar)}
+          subtitle={`Del que vencido: ${formatCurrency(kpis.pendientePagarVencido)}`}
           icon={<ReceiptText className="w-5 h-5" />}
           color="amber"
         />
+      </div>
+
+      {/* Row 3 - Riesgo */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         <KpiCard
-          title="Facturas Vencidas"
-          value={String(kpis.facturasVencidas)}
-          subtitle="Sin cobrar tras vencimiento"
+          title="Cobros Vencidos"
+          value={formatCurrency(kpis.pendienteCobrarVencido)}
+          subtitle={`${kpis.facturasVencidas} factura(s) sin cobrar`}
           icon={<AlertOctagon className="w-5 h-5" />}
+          color="red"
+        />
+        <KpiCard
+          title="Pagos Vencidos"
+          value={formatCurrency(kpis.pendientePagarVencido)}
+          subtitle={`${kpis.facturasVencidasPago} factura(s) sin pagar`}
+          icon={<AlertTriangle className="w-5 h-5" />}
           color="red"
         />
         <KpiCard
           title="Días Cobro Medio"
           value={`${kpis.diasCobroMedio} días`}
-          subtitle="DSO (Days Sales Outstanding)"
+          subtitle="DSO · Plazo medio de cobro"
           icon={<Clock className="w-5 h-5" />}
           color="default"
+          trend={`Tasa cobro: ${kpis.tasaCobro.toFixed(1)}%`}
+          trendDirection={kpis.tasaCobro >= 80 ? 'up' : 'neutral'}
+        />
+        <KpiCard
+          title="Días Pago Medio"
+          value={`${kpis.dpo} días`}
+          subtitle="DPO · Plazo medio de pago"
+          icon={<CalendarCheck className="w-5 h-5" />}
+          color="default"
+          trend={`Tasa pago: ${kpis.tasaPago.toFixed(1)}%`}
+          trendDirection={kpis.tasaPago >= 80 ? 'up' : 'neutral'}
         />
       </div>
 
+      {/* Row 4 - Charts */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         <ChartCard
           title="Ingresos vs Gastos"
-          subtitle="Últimos 12 meses"
+          subtitle="Facturas emitidas · Últimos 12 meses"
         >
           <ResponsiveContainer width="100%" height={300}>
             <BarChart data={monthly} margin={{ top: 5, right: 5, left: 0, bottom: 0 }}>
@@ -142,11 +183,11 @@ export function Overview({ data, loading }: OverviewProps) {
         </ChartCard>
 
         <ChartCard
-          title="Evolución de tesorería"
-          subtitle="Posición de caja acumulada"
+          title="Tesorería Real"
+          subtitle="Cobros y pagos efectivamente realizados"
         >
           <ResponsiveContainer width="100%" height={300}>
-            <LineChart data={cashTrend} margin={{ top: 5, right: 5, left: 0, bottom: 0 }}>
+            <ComposedChart data={cashFlow} margin={{ top: 5, right: 5, left: 0, bottom: 0 }}>
               <CartesianGrid strokeDasharray="3 3" stroke="#eee" />
               <XAxis dataKey="label" fontSize={11} stroke="#777" />
               <YAxis
@@ -158,26 +199,58 @@ export function Overview({ data, loading }: OverviewProps) {
                 formatter={(v: number) => formatCurrency(v)}
                 contentStyle={{ borderRadius: 8, border: '1px solid #eee' }}
               />
+              <Legend />
+              <Bar dataKey="cobros" name="Cobros" fill="#22c55e" opacity={0.8} radius={[4, 4, 0, 0]} />
+              <Bar dataKey="pagos" name="Pagos" fill="#e4032d" opacity={0.8} radius={[4, 4, 0, 0]} />
               <Line
                 type="monotone"
-                dataKey="cash"
-                name="Caja"
-                stroke="#e4032d"
+                dataKey="neto"
+                name="Saldo neto"
+                stroke="#333"
                 strokeWidth={2.5}
-                dot={{ r: 4, fill: '#e4032d' }}
+                dot={{ r: 4, fill: '#333' }}
                 activeDot={{ r: 6 }}
               />
-            </LineChart>
+            </ComposedChart>
           </ResponsiveContainer>
         </ChartCard>
       </div>
 
+      {/* Row 5 - IVA Balance */}
+      <div className="card p-5 bg-gray-50">
+        <h3 className="text-xs uppercase tracking-wider font-semibold text-gray-500 mb-4">
+          Balance IVA · Año {year}
+        </h3>
+        <div className="grid grid-cols-3 gap-6">
+          <div>
+            <div className="text-xs text-gray-500 mb-1">IVA Repercutido</div>
+            <div className="font-bold text-lg text-gep-dark">{formatCurrency(kpis.ivaRepercutido)}</div>
+            <div className="text-xs text-gray-400">IVA cobrado a clientes</div>
+          </div>
+          <div>
+            <div className="text-xs text-gray-500 mb-1">IVA Soportado</div>
+            <div className="font-bold text-lg text-gep-dark">{formatCurrency(kpis.ivaSoportado)}</div>
+            <div className="text-xs text-gray-400">IVA pagado a proveedores</div>
+          </div>
+          <div>
+            <div className="text-xs text-gray-500 mb-1">Saldo IVA a ingresar</div>
+            <div className={`font-bold text-lg ${kpis.saldoIVA >= 0 ? 'text-gep-red' : 'text-green-600'}`}>
+              {formatCurrency(kpis.saldoIVA)}
+            </div>
+            <div className="text-xs text-gray-400">
+              {kpis.saldoIVA >= 0 ? 'A declarar a Hacienda' : 'A recuperar de Hacienda'}
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Row 6 - Alerts */}
       {alerts.length > 0 && (
         <div>
           <h2 className="text-sm uppercase tracking-wider font-semibold text-gray-500 mb-3">
             Alertas principales
           </h2>
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
             {alerts.map((a) => (
               <AlertCard key={a.id} alert={a} />
             ))}
@@ -191,6 +264,11 @@ export function Overview({ data, loading }: OverviewProps) {
 function OverviewSkeleton() {
   return (
     <div className="space-y-6">
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+        {[0, 1, 2].map((i) => (
+          <KpiCardSkeleton key={i} />
+        ))}
+      </div>
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         {[0, 1, 2, 3].map((i) => (
           <KpiCardSkeleton key={i} />

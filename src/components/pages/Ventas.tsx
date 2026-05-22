@@ -13,9 +13,11 @@ import {
 } from 'recharts';
 import {
   TrendingUp,
-  CheckCircle2,
   Hourglass,
   Percent,
+  AlertOctagon,
+  Clock,
+  XCircle,
 } from 'lucide-react';
 import type { FinancialData } from '../../types/financial';
 import { KpiCard, KpiCardSkeleton } from '../ui/KpiCard';
@@ -25,9 +27,12 @@ import { StatusBadge } from '../ui/StatusBadge';
 import { formatCurrency, formatDate } from '../../lib/parseData';
 import {
   agingAnalysis,
-  monthlyRevenueVsExpenses,
   topClientes,
-  topProyectos,
+  ventasActivas,
+  monthlyVentasStacked,
+  estadoDistributionVentas,
+  computeOverviewKpis,
+  sum,
 } from '../../lib/calculations';
 import type { Venta } from '../../types/financial';
 
@@ -39,20 +44,42 @@ interface VentasProps {
 export function Ventas({ data, loading }: VentasProps) {
   if (loading || !data) return <VentasSkeleton />;
 
-  const totalFacturado = data.ventas.reduce((acc, v) => acc + v.total, 0);
-  const totalCobrado = data.ventas.reduce((acc, v) => acc + v.cobrado, 0);
-  const totalPendiente = data.ventas.reduce((acc, v) => acc + v.pendiente, 0);
-  const pctCobrado = totalFacturado > 0 ? (totalCobrado / totalFacturado) * 100 : 0;
+  const activas = ventasActivas(data.ventas);
 
-  const monthly = monthlyRevenueVsExpenses(data, 12);
-  const clientes = topClientes(data.ventas, 8);
-  const proyectos = topProyectos(data.ventas, 8);
-  const aging = agingAnalysis(data.ventas);
+  // Row 1 metrics
+  const totalFacturado = sum(data.ventas, (v) => v.total);
+  const totalActiveFacturado = sum(activas, (v) => v.total);
+  const totalActivoSinIVA = sum(activas, (v) => v.subtotal);
+  const totalCobrado = sum(activas, (v) => v.cobrado);
+  const tasaCobro = totalActiveFacturado > 0 ? (totalCobrado / totalActiveFacturado) * 100 : 0;
+
+  // Row 2 metrics
+  const totalPendiente = sum(activas, (v) => v.pendiente);
+  const vencidasVentas = activas.filter((v) => v.estado === 'Vencido');
+  const pendienteVencido = sum(vencidasVentas, (v) => v.pendiente);
+  const countVencido = vencidasVentas.length;
+  const noVencidasVentas = activas.filter((v) => v.estado === 'Pendiente');
+  const pendienteNoVencido = sum(noVencidasVentas, (v) => v.pendiente);
+  const countNoVencido = noVencidasVentas.length;
+  const anuladasVentas = data.ventas.filter((v) => v.estado === 'Anulado');
+  const totalAnulado = sum(anuladasVentas, (v) => v.total);
+  const countAnulado = anuladasVentas.length;
+
+  // DSO from kpis
+  const kpis = computeOverviewKpis(data);
+  const dso = kpis.diasCobroMedio;
+
+  // Charts data
+  const stackedMonthly = monthlyVentasStacked(data.ventas, 12);
+  const estadoDist = estadoDistributionVentas(data.ventas);
+  const clientes = topClientes(activas, 8);
+  const aging = agingAnalysis(activas);
 
   const columns: DataTableColumn<Venta>[] = [
     { key: 'fecha', header: 'Fecha', accessor: (r) => r.fecha, render: (r) => formatDate(r.fecha) },
     { key: 'num', header: 'Num', accessor: (r) => r.num },
     { key: 'cliente', header: 'Cliente', accessor: (r) => r.cliente },
+    { key: 'descripcion', header: 'Descripción', accessor: (r) => r.descripcion },
     { key: 'proyecto', header: 'Proyecto', accessor: (r) => r.proyecto },
     {
       key: 'total',
@@ -93,40 +120,77 @@ export function Ventas({ data, loading }: VentasProps) {
 
   return (
     <div className="space-y-6">
+
+      {/* Row 1 KPIs */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         <KpiCard
           title="Total Facturado"
           value={formatCurrency(totalFacturado)}
+          subtitle="Todas las facturas"
           icon={<TrendingUp className="w-5 h-5" />}
           color="green"
           emphasis
         />
         <KpiCard
-          title="Total Cobrado"
-          value={formatCurrency(totalCobrado)}
-          icon={<CheckCircle2 className="w-5 h-5" />}
+          title="Neto Facturable"
+          value={formatCurrency(totalActiveFacturado)}
+          subtitle={`Sin IVA: ${formatCurrency(totalActivoSinIVA)}`}
+          icon={<TrendingUp className="w-5 h-5" />}
           color="green"
         />
         <KpiCard
-          title="Total Pendiente"
+          title="Tasa de Cobro"
+          value={`${tasaCobro.toFixed(1)}%`}
+          subtitle={`Cobrado: ${formatCurrency(totalCobrado)}`}
+          icon={<Percent className="w-5 h-5" />}
+          color="blue"
+          trend={tasaCobro >= 80 ? 'Buen ratio de cobro' : 'Revisar cobros pendientes'}
+          trendDirection={tasaCobro >= 80 ? 'up' : 'neutral'}
+        />
+        <KpiCard
+          title="DSO"
+          value={`${dso} días`}
+          subtitle="Días de cobro medio"
+          icon={<Clock className="w-5 h-5" />}
+          color="default"
+        />
+      </div>
+
+      {/* Row 2 KPIs */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        <KpiCard
+          title="Pendiente Total"
           value={formatCurrency(totalPendiente)}
           icon={<Hourglass className="w-5 h-5" />}
           color="amber"
         />
         <KpiCard
-          title="% Cobrado"
-          value={`${pctCobrado.toFixed(1)}%`}
-          icon={<Percent className="w-5 h-5" />}
-          color="blue"
-          trend={pctCobrado >= 80 ? 'Buen ratio' : 'Hay margen de mejora'}
-          trendDirection={pctCobrado >= 80 ? 'up' : 'neutral'}
+          title="Vencido sin Cobrar"
+          value={formatCurrency(pendienteVencido)}
+          subtitle={`${countVencido} facturas`}
+          icon={<AlertOctagon className="w-5 h-5" />}
+          color="red"
+        />
+        <KpiCard
+          title="Pendiente No Vencido"
+          value={formatCurrency(pendienteNoVencido)}
+          subtitle={`${countNoVencido} facturas`}
+          color="amber"
+        />
+        <KpiCard
+          title="Facturas Anuladas"
+          value={formatCurrency(totalAnulado)}
+          subtitle={`${countAnulado} facturas`}
+          icon={<XCircle className="w-5 h-5" />}
+          color="default"
         />
       </div>
 
+      {/* Charts Row 1 */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-        <ChartCard title="Ingresos por mes" subtitle="Últimos 12 meses">
+        <ChartCard title="Facturación mensual" subtitle="Cobrado · Pendiente · Vencido (últimos 12 meses)">
           <ResponsiveContainer width="100%" height={280}>
-            <BarChart data={monthly} margin={{ top: 5, right: 5, left: 0, bottom: 0 }}>
+            <BarChart data={stackedMonthly} margin={{ top: 5, right: 5, left: 0, bottom: 0 }}>
               <CartesianGrid strokeDasharray="3 3" stroke="#eee" />
               <XAxis dataKey="label" fontSize={11} stroke="#777" />
               <YAxis
@@ -134,36 +198,50 @@ export function Ventas({ data, loading }: VentasProps) {
                 stroke="#777"
                 tickFormatter={(v) => formatCurrency(v, { compact: true })}
               />
-              <Tooltip formatter={(v: number) => formatCurrency(v)} />
-              <Bar dataKey="ingresos" name="Ingresos" fill="#e4032d" radius={[4, 4, 0, 0]} />
+              <Tooltip
+                formatter={(v: number) => formatCurrency(v)}
+                contentStyle={{ borderRadius: 8, border: '1px solid #eee' }}
+              />
+              <Legend />
+              <Bar dataKey="cobrado" name="Cobrado" stackId="a" fill="#22c55e" radius={[0, 0, 0, 0]} />
+              <Bar dataKey="pendiente" name="Pendiente" stackId="a" fill="#3b82f6" radius={[0, 0, 0, 0]} />
+              <Bar dataKey="vencido" name="Vencido" stackId="a" fill="#ef4444" radius={[4, 4, 0, 0]} />
             </BarChart>
           </ResponsiveContainer>
         </ChartCard>
 
-        <ChartCard title="Aging de cobros" subtitle="Cuentas por cobrar vencidas">
+        <ChartCard title="Distribución por estado" subtitle="Valor de facturas por estado">
           <ResponsiveContainer width="100%" height={280}>
             <PieChart>
               <Pie
-                data={aging}
+                data={estadoDist}
                 dataKey="value"
-                nameKey="range"
+                nameKey="estado"
                 cx="50%"
                 cy="50%"
                 innerRadius={60}
                 outerRadius={95}
                 paddingAngle={2}
               >
-                {aging.map((b, i) => (
-                  <Cell key={i} fill={b.color} />
+                {estadoDist.map((entry, i) => (
+                  <Cell key={i} fill={entry.color} />
                 ))}
               </Pie>
-              <Tooltip formatter={(v: number) => formatCurrency(v)} />
+              <Tooltip
+                formatter={(v: number, _name: string, props: { payload?: { count?: number } }) =>
+                  [`${formatCurrency(v)} (${props.payload?.count ?? 0} fact.)`, props.payload?.count !== undefined ? '' : '']
+                }
+                contentStyle={{ borderRadius: 8, border: '1px solid #eee' }}
+              />
               <Legend />
             </PieChart>
           </ResponsiveContainer>
         </ChartCard>
+      </div>
 
-        <ChartCard title="Top 8 Clientes" subtitle="Por importe facturado">
+      {/* Charts Row 2 */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+        <ChartCard title="Top 8 Clientes" subtitle="Por importe facturado (activas)">
           <ResponsiveContainer width="100%" height={300}>
             <BarChart
               data={clientes}
@@ -190,28 +268,31 @@ export function Ventas({ data, loading }: VentasProps) {
           </ResponsiveContainer>
         </ChartCard>
 
-        <ChartCard title="Top 8 Proyectos" subtitle="Por importe facturado">
+        <ChartCard title="Aging de cobros vencidos" subtitle="Cuentas por cobrar vencidas por antigüedad">
           <ResponsiveContainer width="100%" height={300}>
-            <BarChart
-              data={proyectos}
-              layout="vertical"
-              margin={{ top: 5, right: 16, left: 16, bottom: 0 }}
-            >
-              <CartesianGrid strokeDasharray="3 3" stroke="#eee" />
-              <XAxis
-                type="number"
-                fontSize={11}
-                stroke="#777"
-                tickFormatter={(v) => formatCurrency(v, { compact: true })}
-              />
-              <YAxis type="category" dataKey="name" fontSize={11} stroke="#777" width={100} />
+            <PieChart>
+              <Pie
+                data={aging}
+                dataKey="value"
+                nameKey="range"
+                cx="50%"
+                cy="50%"
+                innerRadius={60}
+                outerRadius={95}
+                paddingAngle={2}
+              >
+                {aging.map((b, i) => (
+                  <Cell key={i} fill={b.color} />
+                ))}
+              </Pie>
               <Tooltip formatter={(v: number) => formatCurrency(v)} />
-              <Bar dataKey="value" name="Facturado" fill="#333333" radius={[0, 4, 4, 0]} />
-            </BarChart>
+              <Legend />
+            </PieChart>
           </ResponsiveContainer>
         </ChartCard>
       </div>
 
+      {/* Table */}
       <div>
         <h2 className="text-sm uppercase tracking-wider font-semibold text-gray-500 mb-3">
           Listado de facturas
@@ -230,6 +311,11 @@ export function Ventas({ data, loading }: VentasProps) {
 function VentasSkeleton() {
   return (
     <div className="space-y-6">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        {[0, 1, 2, 3].map((i) => (
+          <KpiCardSkeleton key={i} />
+        ))}
+      </div>
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         {[0, 1, 2, 3].map((i) => (
           <KpiCardSkeleton key={i} />
