@@ -10,7 +10,7 @@ import {
   XAxis,
   YAxis,
 } from 'recharts';
-import { Wallet, CalendarClock, Calendar, CalendarRange, AlertTriangle } from 'lucide-react';
+import { Wallet, CalendarClock, Calendar, CalendarRange, AlertTriangle, Building2, TrendingUp, TrendingDown } from 'lucide-react';
 import type { FinancialData, Gasto, Venta } from '../../types/financial';
 import { KpiCard, KpiCardSkeleton } from '../ui/KpiCard';
 import { ChartCard, ChartCardSkeleton } from '../ui/ChartCard';
@@ -25,6 +25,7 @@ import {
   upcomingReceivables,
   overdueReceivables,
   overduePayables,
+  bankBalance,
 } from '../../lib/calculations';
 
 interface CashFlowProps {
@@ -40,6 +41,10 @@ export function CashFlow({ data, loading }: CashFlowProps) {
   const net60 = netNextNDays(data, 60);
   const projection = projectedCashFlow(data, 6);
   const projected90 = projection[2]?.cumulative ?? kpis.posicionCaja;
+
+  const accounts = data.bankAccounts ?? [];
+  const totalBankBalance = bankBalance(data);
+  const hasBankData = totalBankBalance !== null;
 
   const receivables = upcomingReceivables(data, 90);
   const payables = upcomingPayables(data, 90);
@@ -106,9 +111,9 @@ export function CashFlow({ data, loading }: CashFlowProps) {
       {/* Row 1 KPIs */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         <KpiCard
-          title="Caja Actual"
+          title="Saldo Bancario"
           value={formatCurrency(kpis.posicionCaja)}
-          subtitle="Dinero efectivamente cobrado - pagado"
+          subtitle={hasBankData ? 'Saldo real en cuentas bancarias (Holded)' : 'Cobros realizados - Pagos realizados'}
           icon={<Wallet className="w-5 h-5" />}
           color={kpis.posicionCaja >= 0 ? 'blue' : 'red'}
           emphasis
@@ -136,6 +141,50 @@ export function CashFlow({ data, loading }: CashFlowProps) {
           color={projected90 >= 0 ? 'green' : 'red'}
         />
       </div>
+
+      {/* Bank accounts breakdown */}
+      {hasBankData && (
+        <div className="card p-5">
+          <div className="flex items-center gap-2 mb-4">
+            <Building2 className="w-4 h-4 text-gray-500" />
+            <h2 className="text-sm uppercase tracking-wider font-semibold text-gray-500">
+              Cuentas bancarias
+            </h2>
+            <span className="ml-auto text-xs text-gray-400">Holded · tiempo real</span>
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
+            {accounts.map((account) => (
+              <div
+                key={account.id}
+                className="rounded-lg border border-gray-100 bg-gray-50 px-4 py-3 flex flex-col gap-1"
+              >
+                <div className="flex items-center gap-2 min-w-0">
+                  <span className="truncate text-sm font-medium text-gep-dark">{account.name}</span>
+                  {account.balance >= 0
+                    ? <TrendingUp className="w-3.5 h-3.5 text-green-500 shrink-0" />
+                    : <TrendingDown className="w-3.5 h-3.5 text-red-500 shrink-0" />
+                  }
+                </div>
+                {account.number && (
+                  <div className="text-[11px] text-gray-400 font-mono truncate">{account.number}</div>
+                )}
+                <div className={`text-base font-bold tabular-nums ${account.balance >= 0 ? 'text-gep-dark' : 'text-gep-red'}`}>
+                  {formatCurrency(account.balance)}
+                </div>
+                {account.currency && account.currency !== 'EUR' && (
+                  <div className="text-[11px] text-gray-400">{account.currency}</div>
+                )}
+              </div>
+            ))}
+          </div>
+          <div className="mt-4 pt-3 border-t border-gray-100 flex justify-between items-center">
+            <span className="text-sm text-gray-500">{accounts.length} cuenta{accounts.length !== 1 ? 's' : ''}</span>
+            <span className={`text-base font-bold tabular-nums ${(totalBankBalance ?? 0) >= 0 ? 'text-gep-dark' : 'text-gep-red'}`}>
+              Total: {formatCurrency(totalBankBalance ?? 0)}
+            </span>
+          </div>
+        </div>
+      )}
 
       {/* Warning banner for negative projection */}
       {projection.some((p) => p.cumulative < 0) && (

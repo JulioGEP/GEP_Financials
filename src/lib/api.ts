@@ -1,6 +1,6 @@
 // API client for fetching financial data via Netlify function proxy
 import { config } from '../config';
-import type { FinancialData } from '../types/financial';
+import type { BankAccount, FinancialData } from '../types/financial';
 import { parseVentasCSV, parseGastosCSV } from './parseData';
 import { generateMockVentas, generateMockGastos } from './mockData';
 
@@ -16,11 +16,26 @@ async function fetchSheet(sheet: 'ventas' | 'gastos'): Promise<string> {
   return json.data as string;
 }
 
+async function fetchBankAccounts(): Promise<BankAccount[]> {
+  try {
+    const res = await fetch(`${config.apiBase}/holded-bank`, {
+      headers: { Accept: 'application/json' },
+    });
+    if (!res.ok) return [];
+    const json = await res.json();
+    if (!Array.isArray(json.data)) return [];
+    return json.data as BankAccount[];
+  } catch {
+    return [];
+  }
+}
+
 export async function fetchFinancialData(): Promise<FinancialData> {
   try {
-    const [ventasCSV, gastosCSV] = await Promise.all([
+    const [ventasCSV, gastosCSV, bankAccounts] = await Promise.all([
       fetchSheet('ventas'),
       fetchSheet('gastos'),
+      fetchBankAccounts(),
     ]);
     const ventas = parseVentasCSV(ventasCSV);
     const gastos = parseGastosCSV(gastosCSV);
@@ -30,6 +45,7 @@ export async function fetchFinancialData(): Promise<FinancialData> {
       return {
         ventas: generateMockVentas(),
         gastos: generateMockGastos(),
+        bankAccounts,
         lastUpdated: new Date(),
         source: 'mock',
       };
@@ -38,6 +54,7 @@ export async function fetchFinancialData(): Promise<FinancialData> {
     return {
       ventas,
       gastos,
+      bankAccounts,
       lastUpdated: new Date(),
       source: 'api',
     };
@@ -46,6 +63,7 @@ export async function fetchFinancialData(): Promise<FinancialData> {
     return {
       ventas: generateMockVentas(),
       gastos: generateMockGastos(),
+      bankAccounts: [],
       lastUpdated: new Date(),
       source: 'mock',
     };

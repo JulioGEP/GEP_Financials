@@ -78,6 +78,11 @@ export function filterByDateRange<T extends { fecha?: Date | null; fechaEmision?
   });
 }
 
+export function bankBalance(data: FinancialData): number | null {
+  if (!data.bankAccounts || data.bankAccounts.length === 0) return null;
+  return data.bankAccounts.reduce((acc, a) => acc + (a.balance ?? 0), 0);
+}
+
 export function computeOverviewKpis(data: FinancialData, dateRange?: DateRange, now = new Date()): OverviewKpis {
   const today = new Date(now);
   today.setHours(0, 0, 0, 0);
@@ -104,10 +109,11 @@ export function computeOverviewKpis(data: FinancialData, dateRange?: DateRange, 
   const resultadoNeto = ingresosNetoYTD - gastosNetoYTD;
   const margenPct = ingresosNetoYTD > 0 ? (resultadoNeto / ingresosNetoYTD) * 100 : 0;
 
-  // Cash position (real money movement)
+  // Cash position: prefer real bank balances from Holded; fall back to cobrado-pagado
   const totalCobrado = sum(activeVentas, (v) => v.cobrado);
   const totalPagado = sum(activeGastos, (g) => g.pagado);
-  const posicionCaja = totalCobrado - totalPagado;
+  const realBankBalance = bankBalance(data);
+  const posicionCaja = realBankBalance !== null ? realBankBalance : totalCobrado - totalPagado;
 
   // Pending (all active, not just YTD)
   const pendienteCobrar = sum(activeVentas, (v) => v.pendiente);
@@ -593,8 +599,10 @@ export function projectedCashFlow(
   const today = new Date(now);
   today.setHours(0, 0, 0, 0);
 
-  const currentCash =
-    sum(data.ventas, (v) => v.cobrado) - sum(data.gastos, (g) => g.pagado);
+  const realBankBal = bankBalance(data);
+  const currentCash = realBankBal !== null
+    ? realBankBal
+    : sum(data.ventas, (v) => v.cobrado) - sum(data.gastos, (g) => g.pagado);
 
   const points: CashFlowProjection[] = [];
   let cumulative = currentCash;
