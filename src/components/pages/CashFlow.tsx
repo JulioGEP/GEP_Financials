@@ -10,8 +10,19 @@ import {
   XAxis,
   YAxis,
 } from 'recharts';
-import { Wallet, CalendarClock, Calendar, CalendarRange, AlertTriangle, Building2, TrendingUp, TrendingDown } from 'lucide-react';
-import type { FinancialData, Gasto, Venta } from '../../types/financial';
+import {
+  Wallet,
+  CalendarClock,
+  Calendar,
+  CalendarRange,
+  AlertTriangle,
+  Building2,
+  TrendingUp,
+  TrendingDown,
+  CreditCard,
+  Banknote,
+} from 'lucide-react';
+import type { FinancialData, BankAccount, Gasto, Venta } from '../../types/financial';
 import { KpiCard, KpiCardSkeleton } from '../ui/KpiCard';
 import { ChartCard, ChartCardSkeleton } from '../ui/ChartCard';
 import { DataTable, type DataTableColumn } from '../ui/DataTable';
@@ -25,12 +36,34 @@ import {
   upcomingReceivables,
   overdueReceivables,
   overduePayables,
-  bankBalance,
 } from '../../lib/calculations';
 
 interface CashFlowProps {
   data: FinancialData | null;
   loading: boolean;
+}
+
+function AccountCard({ account }: { account: BankAccount }) {
+  const pos = account.balance >= 0;
+  return (
+    <div className="rounded-lg border border-gray-100 bg-gray-50 px-4 py-3 flex flex-col gap-1">
+      <div className="flex items-center gap-2 min-w-0">
+        <span className="truncate text-sm font-medium text-gep-dark">{account.name}</span>
+        {pos
+          ? <TrendingUp className="w-3.5 h-3.5 text-green-500 shrink-0" />
+          : <TrendingDown className="w-3.5 h-3.5 text-red-500 shrink-0" />}
+      </div>
+      {account.number && (
+        <div className="text-[11px] text-gray-400 font-mono truncate">{account.number}</div>
+      )}
+      <div className={`text-base font-bold tabular-nums ${pos ? 'text-gep-dark' : 'text-gep-red'}`}>
+        {formatCurrency(account.balance)}
+      </div>
+      {account.currency && account.currency !== 'EUR' && (
+        <div className="text-[11px] text-gray-400">{account.currency}</div>
+      )}
+    </div>
+  );
 }
 
 export function CashFlow({ data, loading }: CashFlowProps) {
@@ -43,8 +76,9 @@ export function CashFlow({ data, loading }: CashFlowProps) {
   const projected90 = projection[2]?.cumulative ?? kpis.posicionCaja;
 
   const accounts = data.bankAccounts ?? [];
-  const totalBankBalance = bankBalance(data);
-  const hasBankData = totalBankBalance !== null;
+  const activeAccounts = accounts.filter((a) => a.balance > 0);
+  const debtAccounts = accounts.filter((a) => a.balance < 0);
+  const zeroAccounts = accounts.filter((a) => a.balance === 0);
 
   const receivables = upcomingReceivables(data, 90);
   const payables = upcomingPayables(data, 90);
@@ -111,9 +145,9 @@ export function CashFlow({ data, loading }: CashFlowProps) {
       {/* Row 1 KPIs */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         <KpiCard
-          title="Saldo Bancario"
+          title="Saldo Disponible"
           value={formatCurrency(kpis.posicionCaja)}
-          subtitle={hasBankData ? 'Saldo real en cuentas bancarias (Holded)' : 'Cobros realizados - Pagos realizados'}
+          subtitle={kpis.hasBankData ? 'Suma de cuentas con saldo positivo (Holded)' : 'Cobros realizados − Pagos realizados'}
           icon={<Wallet className="w-5 h-5" />}
           color={kpis.posicionCaja >= 0 ? 'blue' : 'red'}
           emphasis
@@ -121,7 +155,7 @@ export function CashFlow({ data, loading }: CashFlowProps) {
         <KpiCard
           title="Flujo Neto 30 días"
           value={formatCurrency(net30)}
-          subtitle="Saldo neto previsto"
+          subtitle="Cobros − pagos previstos"
           icon={<CalendarClock className="w-5 h-5" />}
           color={net30 >= 0 ? 'green' : 'red'}
           trendDirection={net30 >= 0 ? 'up' : 'down'}
@@ -129,60 +163,95 @@ export function CashFlow({ data, loading }: CashFlowProps) {
         <KpiCard
           title="Flujo Neto 60 días"
           value={formatCurrency(net60)}
-          subtitle="Saldo neto previsto"
+          subtitle="Cobros − pagos previstos"
           icon={<Calendar className="w-5 h-5" />}
           color={net60 >= 0 ? 'green' : 'red'}
         />
         <KpiCard
           title="Caja Proyectada 90d"
           value={formatCurrency(projected90)}
-          subtitle="Saldo proyectado acumulado"
+          subtitle="Saldo disponible acumulado proyectado"
           icon={<CalendarRange className="w-5 h-5" />}
           color={projected90 >= 0 ? 'green' : 'red'}
         />
       </div>
 
       {/* Bank accounts breakdown */}
-      {hasBankData && (
-        <div className="card p-5">
-          <div className="flex items-center gap-2 mb-4">
+      {kpis.hasBankData && (
+        <div className="card p-5 space-y-5">
+          <div className="flex items-center gap-2">
             <Building2 className="w-4 h-4 text-gray-500" />
             <h2 className="text-sm uppercase tracking-wider font-semibold text-gray-500">
-              Cuentas bancarias
+              Saldos de cuentas
             </h2>
             <span className="ml-auto text-xs text-gray-400">Holded · tiempo real</span>
           </div>
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
-            {accounts.map((account) => (
-              <div
-                key={account.id}
-                className="rounded-lg border border-gray-100 bg-gray-50 px-4 py-3 flex flex-col gap-1"
-              >
-                <div className="flex items-center gap-2 min-w-0">
-                  <span className="truncate text-sm font-medium text-gep-dark">{account.name}</span>
-                  {account.balance >= 0
-                    ? <TrendingUp className="w-3.5 h-3.5 text-green-500 shrink-0" />
-                    : <TrendingDown className="w-3.5 h-3.5 text-red-500 shrink-0" />
-                  }
-                </div>
-                {account.number && (
-                  <div className="text-[11px] text-gray-400 font-mono truncate">{account.number}</div>
-                )}
-                <div className={`text-base font-bold tabular-nums ${account.balance >= 0 ? 'text-gep-dark' : 'text-gep-red'}`}>
-                  {formatCurrency(account.balance)}
-                </div>
-                {account.currency && account.currency !== 'EUR' && (
-                  <div className="text-[11px] text-gray-400">{account.currency}</div>
-                )}
+
+          {/* Summary bar */}
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+            <div className="rounded-lg bg-green-50 border border-green-100 px-4 py-3">
+              <div className="flex items-center gap-2 text-green-700 mb-1">
+                <Banknote className="w-4 h-4" />
+                <span className="text-xs font-semibold uppercase tracking-wide">Saldo disponible</span>
               </div>
-            ))}
+              <div className="text-xl font-bold text-green-800 tabular-nums">
+                {formatCurrency(kpis.saldoDisponible ?? 0)}
+              </div>
+              <div className="text-xs text-green-600 mt-0.5">{activeAccounts.length} cuenta{activeAccounts.length !== 1 ? 's' : ''} activa{activeAccounts.length !== 1 ? 's' : ''}</div>
+            </div>
+            <div className="rounded-lg bg-red-50 border border-red-100 px-4 py-3">
+              <div className="flex items-center gap-2 text-red-700 mb-1">
+                <CreditCard className="w-4 h-4" />
+                <span className="text-xs font-semibold uppercase tracking-wide">Deuda financiera</span>
+              </div>
+              <div className="text-xl font-bold text-red-700 tabular-nums">
+                {formatCurrency(kpis.deudaFinanciera ?? 0)}
+              </div>
+              <div className="text-xs text-red-500 mt-0.5">{debtAccounts.length} cuenta{debtAccounts.length !== 1 ? 's' : ''} con saldo negativo</div>
+            </div>
+            <div className="rounded-lg bg-gray-50 border border-gray-200 px-4 py-3">
+              <div className="flex items-center gap-2 text-gray-600 mb-1">
+                <Wallet className="w-4 h-4" />
+                <span className="text-xs font-semibold uppercase tracking-wide">Posición neta</span>
+              </div>
+              <div className={`text-xl font-bold tabular-nums ${(kpis.posicionNetaBancaria ?? 0) >= 0 ? 'text-gep-dark' : 'text-gep-red'}`}>
+                {formatCurrency(kpis.posicionNetaBancaria ?? 0)}
+              </div>
+              <div className="text-xs text-gray-400 mt-0.5">{accounts.length} cuenta{accounts.length !== 1 ? 's' : ''} en total</div>
+            </div>
           </div>
-          <div className="mt-4 pt-3 border-t border-gray-100 flex justify-between items-center">
-            <span className="text-sm text-gray-500">{accounts.length} cuenta{accounts.length !== 1 ? 's' : ''}</span>
-            <span className={`text-base font-bold tabular-nums ${(totalBankBalance ?? 0) >= 0 ? 'text-gep-dark' : 'text-gep-red'}`}>
-              Total: {formatCurrency(totalBankBalance ?? 0)}
-            </span>
-          </div>
+
+          {/* Active accounts */}
+          {activeAccounts.length > 0 && (
+            <div>
+              <div className="text-xs font-semibold uppercase tracking-wider text-green-700 mb-2">
+                Cuentas con saldo positivo
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
+                {activeAccounts.map((a) => <AccountCard key={a.id} account={a} />)}
+              </div>
+            </div>
+          )}
+
+          {/* Debt accounts */}
+          {debtAccounts.length > 0 && (
+            <div>
+              <div className="text-xs font-semibold uppercase tracking-wider text-red-600 mb-2">
+                Préstamos, créditos y tarjetas con saldo negativo
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
+                {debtAccounts.map((a) => <AccountCard key={a.id} account={a} />)}
+              </div>
+            </div>
+          )}
+
+          {/* Zero balance accounts (collapsed) */}
+          {zeroAccounts.length > 0 && (
+            <div className="text-xs text-gray-400">
+              {zeroAccounts.length} cuenta{zeroAccounts.length !== 1 ? 's' : ''} con saldo 0:{' '}
+              {zeroAccounts.map((a) => a.name).join(' · ')}
+            </div>
+          )}
         </div>
       )}
 
@@ -202,7 +271,7 @@ export function CashFlow({ data, loading }: CashFlowProps) {
       {/* Chart - Projection */}
       <ChartCard
         title="Proyección de tesorería"
-        subtitle="Cobros - Pagos por mes y saldo acumulado proyectado"
+        subtitle="Cobros − Pagos por mes y saldo disponible acumulado proyectado"
       >
         <ResponsiveContainer width="100%" height={360}>
           <ComposedChart data={projection} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>

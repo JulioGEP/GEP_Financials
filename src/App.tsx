@@ -5,6 +5,7 @@ import { Overview } from './components/pages/Overview';
 import { Ventas } from './components/pages/Ventas';
 import { Gastos } from './components/pages/Gastos';
 import { CashFlow } from './components/pages/CashFlow';
+import { Deuda } from './components/pages/Deuda';
 import { Alertas } from './components/pages/Alertas';
 import { PeriodProvider } from './context/PeriodContext';
 
@@ -67,6 +68,20 @@ export default function App() {
             onRefresh={() => void refresh()}
           >
             <CashFlow data={data} loading={loading} />
+          </Layout>
+        }
+      />
+      <Route
+        path="/deuda"
+        element={
+          <Layout
+            title="Análisis de Deuda"
+            subtitle="Préstamos, créditos y posición financiera neta"
+            data={data}
+            isRefreshing={isRefreshing}
+            onRefresh={() => void refresh()}
+          >
+            <Deuda data={data} loading={loading} />
           </Layout>
         }
       />
