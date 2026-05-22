@@ -24,7 +24,7 @@ export function Sidebar() {
   return (
     <aside className="w-64 shrink-0 bg-gep-dark text-white flex flex-col min-h-screen">
       <div className="px-6 py-6 border-b border-white/10">
-        <div className="h-12 flex items-center bg-white rounded-md px-3">
+        <div className="h-12 flex items-center">
           <img
             src={gepGroupLogo}
             alt="GEP Group"
