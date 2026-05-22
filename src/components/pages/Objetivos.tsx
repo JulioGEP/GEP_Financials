@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Target, TrendingUp } from 'lucide-react';
+import { AlertTriangle, Target, TrendingUp } from 'lucide-react';
 import { Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
 import { ChartCard } from '../ui/ChartCard';
 import { KpiCard, KpiCardSkeleton } from '../ui/KpiCard';
@@ -38,7 +38,7 @@ function parseObjetivosCSV(csv: string): ObjetivoMensual[] {
     transformHeader: (header) => header.trim(),
   });
 
-  // Detect which column holds month names: may be "Mes", a year like "2026", etc.
+  // Detect which column holds month names: header may be "Mes", a year like "2026", etc.
   const mesKey = (() => {
     if (parsed.data.length === 0) return 'Mes';
     const firstRow = parsed.data[0];
@@ -52,37 +52,56 @@ function parseObjetivosCSV(csv: string): ObjetivoMensual[] {
   return parsed.data
     .map((row) => ({
       mes: (row[mesKey] || '').trim(),
-      formacionAbierta: parseSpanishNumber(getField(row, ['Formación abierta', 'Formacion abierta'])),
-      formacionEmpresas: parseSpanishNumber(getField(row, ['Formación empresas', 'Formacion empresas'])),
+      formacionAbierta: parseSpanishNumber(getField(row, ['Formación abierta', 'Formacion abierta', 'Formación Abierta', 'Formacion Abierta'])),
+      formacionEmpresas: parseSpanishNumber(getField(row, ['Formación empresas', 'Formacion empresas', 'Formación Empresas', 'Formacion Empresas'])),
       material: parseSpanishNumber(getField(row, ['Material'])),
-      gepServices: parseSpanishNumber(getField(row, ['Gep services', 'GEP services'])),
-      pci: parseSpanishNumber(getField(row, ['PCI'])),
+      gepServices: parseSpanishNumber(getField(row, ['Gep services', 'GEP services', 'Gep Services', 'GEP Services'])),
+      pci: parseSpanishNumber(getField(row, ['PCI', 'Pci'])),
       total: parseSpanishNumber(getField(row, ['Total', 'TOTAL'])),
     }))
     .filter((row) => MESES.includes(row.mes.toLowerCase()));
 }
 
-async function fetchObjetivos(): Promise<ObjetivoMensual[]> {
+async function fetchObjetivos(): Promise<{ rows: ObjetivoMensual[]; rawPreview: string }> {
   const res = await fetch(`${config.apiBase}/sheets?sheet=objetivos`, {
     headers: { Accept: 'application/json' },
   });
-  if (!res.ok) throw new Error(`Objetivos fetch failed: ${res.status}`);
-  const json = await res.json();
-  return parseObjetivosCSV(json.data as string);
+
+  const json = await res.json() as { data?: string; error?: string };
+
+  if (!res.ok || json.error) {
+    throw new Error(json.error ?? `Error del servidor: ${res.status}`);
+  }
+
+  const csv = json.data ?? '';
+  const rawPreview = csv.slice(0, 300);
+  const rows = parseObjetivosCSV(csv);
+  return { rows, rawPreview };
 }
 
 export function Objetivos({ loading }: ObjetivosProps) {
   const [objetivos, setObjetivos] = useState<ObjetivoMensual[]>([]);
   const [loadingObjetivos, setLoadingObjetivos] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [rawPreview, setRawPreview] = useState<string>('');
 
   useEffect(() => {
     let mounted = true;
+    setError(null);
     void fetchObjetivos()
-      .then((rows) => {
-        if (mounted) setObjetivos(rows);
+      .then(({ rows, rawPreview: preview }) => {
+        if (!mounted) return;
+        setObjetivos(rows);
+        if (rows.length === 0) {
+          setRawPreview(preview);
+          setError('No se encontraron filas de objetivos. La hoja puede no ser pública, el GID puede ser incorrecto, o las columnas no coinciden.');
+        }
       })
-      .catch((error) => {
-        console.warn('[GEP] No se pudieron cargar objetivos:', error);
+      .catch((err: unknown) => {
+        if (!mounted) return;
+        const msg = err instanceof Error ? err.message : 'Error desconocido';
+        console.warn('[GEP] No se pudieron cargar objetivos:', msg);
+        setError(msg);
       })
       .finally(() => {
         if (mounted) setLoadingObjetivos(false);
@@ -112,6 +131,22 @@ export function Objetivos({ loading }: ObjetivosProps) {
 
   return (
     <div className="space-y-6">
+      {error && (
+        <div className="rounded-lg border border-amber-200 bg-amber-50 p-4 flex gap-3">
+          <AlertTriangle className="w-5 h-5 text-amber-500 shrink-0 mt-0.5" />
+          <div className="text-sm">
+            <p className="font-semibold text-amber-800 mb-1">No se pudieron cargar los datos de objetivos</p>
+            <p className="text-amber-700">{error}</p>
+            {rawPreview && (
+              <details className="mt-2">
+                <summary className="cursor-pointer text-amber-600 text-xs font-medium">Ver datos recibidos</summary>
+                <pre className="mt-1 text-xs bg-amber-100 rounded p-2 overflow-x-auto whitespace-pre-wrap break-all">{rawPreview}</pre>
+              </details>
+            )}
+          </div>
+        </div>
+      )}
+
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         <KpiCard title="Objetivo anual total" value={formatCurrency(totals.total)} icon={<Target className="w-4 h-4" />} color="blue" />
         <KpiCard title="Media mensual" value={formatCurrency(objetivos.length ? totals.total / objetivos.length : 0)} icon={<TrendingUp className="w-4 h-4" />} color="green" />
