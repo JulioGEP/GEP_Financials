@@ -47,9 +47,20 @@ export interface Gasto {
   fechaPago: Date | null;
 }
 
+export interface BankAccount {
+  id: string;
+  name: string;
+  desc?: string;
+  balance: number;
+  currency?: string;
+  number?: string;
+  active?: boolean;
+}
+
 export interface FinancialData {
   ventas: Venta[];
   gastos: Gasto[];
+  bankAccounts: BankAccount[];
   lastUpdated: Date;
   source: 'api' | 'mock';
 }
