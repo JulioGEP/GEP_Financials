@@ -38,15 +38,26 @@ function parseObjetivosCSV(csv: string): ObjetivoMensual[] {
     transformHeader: (header) => header.trim(),
   });
 
+  // Detect which column holds month names: may be "Mes", a year like "2026", etc.
+  const mesKey = (() => {
+    if (parsed.data.length === 0) return 'Mes';
+    const firstRow = parsed.data[0];
+    return (
+      Object.keys(firstRow).find((k) =>
+        MESES.includes((firstRow[k] || '').toLowerCase().trim())
+      ) ?? 'Mes'
+    );
+  })();
+
   return parsed.data
     .map((row) => ({
-      mes: getField(row, ['Mes']),
+      mes: (row[mesKey] || '').trim(),
       formacionAbierta: parseSpanishNumber(getField(row, ['Formación abierta', 'Formacion abierta'])),
       formacionEmpresas: parseSpanishNumber(getField(row, ['Formación empresas', 'Formacion empresas'])),
       material: parseSpanishNumber(getField(row, ['Material'])),
       gepServices: parseSpanishNumber(getField(row, ['Gep services', 'GEP services'])),
       pci: parseSpanishNumber(getField(row, ['PCI'])),
-      total: parseSpanishNumber(getField(row, ['Total'])),
+      total: parseSpanishNumber(getField(row, ['Total', 'TOTAL'])),
     }))
     .filter((row) => MESES.includes(row.mes.toLowerCase()));
 }
