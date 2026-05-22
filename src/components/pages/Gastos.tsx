@@ -73,11 +73,14 @@ export function Gastos({ data, loading }: GastosProps) {
     estadoIngreso: '',
     estadoGasto: '',
   });
+  const options = useMemo(
+    () => getFilterOptions(data?.ventas ?? [], data?.gastos ?? []),
+    [data?.ventas, data?.gastos],
+  );
 
   if (loading || !data) return <GastosSkeleton />;
 
   const activos = gastosActivos(data.gastos);
-  const options = useMemo(() => getFilterOptions(data.ventas, data.gastos), [data.ventas, data.gastos]);
   const filtered = applyGastoFilters(filterByDateRange(activos, dateRange, 'fechaEmision'), filters);
   const prevFiltered = applyGastoFilters(filterByDateRange(activos, prevDateRange, 'fechaEmision'), filters);
   const today = new Date();
