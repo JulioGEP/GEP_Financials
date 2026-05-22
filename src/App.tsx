@@ -9,6 +9,7 @@ import { Deuda } from './components/pages/Deuda';
 import { Alertas } from './components/pages/Alertas';
 import { Objetivos } from './components/pages/Objetivos';
 import { Comparativas } from './components/pages/Comparativas';
+import { Pipedrive } from './components/pages/Pipedrive';
 import { PeriodProvider } from './context/PeriodContext';
 
 export default function App() {
@@ -112,6 +113,20 @@ export default function App() {
             onRefresh={() => void refresh()}
           >
             <Alertas data={data} loading={loading} />
+          </Layout>
+        }
+      />
+      <Route
+        path="/pipedrive"
+        element={
+          <Layout
+            title="Pipedrive"
+            subtitle="Ventas ganadas vs Objetivo y año anterior"
+            data={data}
+            isRefreshing={isRefreshing}
+            onRefresh={() => void refresh()}
+          >
+            <Pipedrive loading={loading} />
           </Layout>
         }
       />
