@@ -71,11 +71,14 @@ export function Ventas({ data, loading }: VentasProps) {
     estadoIngreso: '',
     estadoGasto: '',
   });
+  const options = useMemo(
+    () => getFilterOptions(data?.ventas ?? [], data?.gastos ?? []),
+    [data?.ventas, data?.gastos],
+  );
 
   if (loading || !data) return <VentasSkeleton />;
 
   const activas = ventasActivas(data.ventas);
-  const options = useMemo(() => getFilterOptions(data.ventas, data.gastos), [data.ventas, data.gastos]);
   const filtered = applyVentaFilters(filterByDateRange(activas, dateRange, 'fecha'), filters);
   const prevFiltered = applyVentaFilters(filterByDateRange(activas, prevDateRange, 'fecha'), filters);
 

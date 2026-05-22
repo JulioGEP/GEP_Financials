@@ -765,12 +765,15 @@ export function Overview({ data, loading }: OverviewProps) {
     estadoIngreso: '',
     estadoGasto: '',
   });
+  const options = useMemo(
+    () => getFilterOptions(data?.ventas ?? [], data?.gastos ?? []),
+    [data?.ventas, data?.gastos],
+  );
 
   if (loading || !data) {
     return <OverviewSkeleton />;
   }
 
-  const options = useMemo(() => getFilterOptions(data.ventas, data.gastos), [data.ventas, data.gastos]);
   const allActiveVentas = applyVentaFilters(ventasActivas(data.ventas), filters);
   const allActiveGastos = applyGastoFilters(gastosActivos(data.gastos), filters);
   const scopedData = { ...data, ventas: allActiveVentas, gastos: allActiveGastos };
