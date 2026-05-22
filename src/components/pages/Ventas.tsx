@@ -25,6 +25,7 @@ import { KpiCard, KpiCardSkeleton } from '../ui/KpiCard';
 import { ChartCard, ChartCardSkeleton } from '../ui/ChartCard';
 import { DataTable, type DataTableColumn } from '../ui/DataTable';
 import { StatusBadge } from '../ui/StatusBadge';
+import { MetricModal } from '../ui/MetricModal';
 import { formatCurrency, formatDate } from '../../lib/parseData';
 import {
   agingAnalysis,
@@ -60,6 +61,8 @@ function deltaDir(delta: number): 'up' | 'down' | 'neutral' {
   return 'neutral';
 }
 
+type ModalKey = 'principal' | 'pendiente' | 'vencido' | 'novencido';
+
 export function Ventas({ data, loading }: VentasProps) {
   const { dateRange, prevDateRange, label } = usePeriod();
   const [filters, setFilters] = useState<FilterState>({
@@ -71,6 +74,7 @@ export function Ventas({ data, loading }: VentasProps) {
     estadoIngreso: '',
     estadoGasto: '',
   });
+  const [openModal, setOpenModal] = useState<ModalKey | null>(null);
   const options = useMemo(
     () => getFilterOptions(data?.ventas ?? [], data?.gastos ?? []),
     [data?.ventas, data?.gastos],
@@ -112,6 +116,9 @@ export function Ventas({ data, loading }: VentasProps) {
   const estadoDist = estadoDistributionVentas(filtered.length > 0 ? filtered : activas);
   const clientes = topClientes(filtered.length > 0 ? filtered : activas, 8);
   const aging = agingAnalysis(activas);
+
+
+  const modalRows = openModal === 'vencido' ? vencidasVentas : openModal === 'novencido' ? noVencidasVentas : openModal === 'pendiente' ? activas.filter((v) => v.pendiente > 0) : filtered;
 
   const columns: DataTableColumn<Venta>[] = [
     { key: 'fecha', header: 'Fecha', accessor: (r) => r.fecha, render: (r) => formatDate(r.fecha) },
@@ -158,12 +165,18 @@ export function Ventas({ data, loading }: VentasProps) {
 
   return (
     <div className="space-y-6">
+      {openModal && (
+        <MetricModal open onClose={() => setOpenModal(null)} title="Detalle de métrica" subtitle={label}>
+          <DataTable columns={columns} data={modalRows} />
+        </MetricModal>
+      )}
       <EntityFilters filters={filters} options={options} onChange={setFilters} />
 
       {/* Row 1 KPIs — period-filtered */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         <KpiCard
           title="Total Facturado"
+          onClick={() => setOpenModal('principal')}
           value={formatCurrency(totalFacturado)}
           subtitle={label}
           icon={<TrendingUp className="w-5 h-5" />}
@@ -204,12 +217,14 @@ export function Ventas({ data, loading }: VentasProps) {
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         <KpiCard
           title="Pendiente Total"
+          onClick={() => setOpenModal('pendiente')}
           value={formatCurrency(totalPendiente)}
           icon={<Hourglass className="w-5 h-5" />}
           color="amber"
         />
         <KpiCard
           title="Vencido sin Cobrar"
+          onClick={() => setOpenModal('vencido')}
           value={formatCurrency(pendienteVencido)}
           subtitle={`${countVencido} facturas`}
           icon={<AlertOctagon className="w-5 h-5" />}
@@ -217,6 +232,7 @@ export function Ventas({ data, loading }: VentasProps) {
         />
         <KpiCard
           title="Pendiente No Vencido"
+          onClick={() => setOpenModal('novencido')}
           value={formatCurrency(pendienteNoVencido)}
           subtitle={`${countNoVencido} facturas`}
           color="amber"

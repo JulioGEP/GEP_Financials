@@ -26,6 +26,7 @@ import { KpiCard, KpiCardSkeleton } from '../ui/KpiCard';
 import { ChartCard, ChartCardSkeleton } from '../ui/ChartCard';
 import { DataTable, type DataTableColumn } from '../ui/DataTable';
 import { StatusBadge } from '../ui/StatusBadge';
+import { MetricModal } from '../ui/MetricModal';
 import { formatCurrency, formatDate } from '../../lib/parseData';
 import {
   topCuentasGastos,
@@ -62,6 +63,8 @@ function deltaDir(delta: number): 'up' | 'down' | 'neutral' {
   return 'neutral';
 }
 
+type ModalKey = 'principal' | 'pendiente' | 'vencido' | 'novencido';
+
 export function Gastos({ data, loading }: GastosProps) {
   const { dateRange, prevDateRange, label } = usePeriod();
   const [filters, setFilters] = useState<FilterState>({
@@ -73,6 +76,7 @@ export function Gastos({ data, loading }: GastosProps) {
     estadoIngreso: '',
     estadoGasto: '',
   });
+  const [openModal, setOpenModal] = useState<ModalKey | null>(null);
   const options = useMemo(
     () => getFilterOptions(data?.ventas ?? [], data?.gastos ?? []),
     [data?.ventas, data?.gastos],
@@ -121,6 +125,9 @@ export function Gastos({ data, loading }: GastosProps) {
   const cuentas = topCuentasGastos(filtered.length > 0 ? filtered : filteredActivos, 8);
   const proveedores = topProveedores(filtered.length > 0 ? filtered : filteredActivos, 8);
   const { data: cuentaData, cuentas: topCuentas } = cuentaGastosForRange(filteredActivos, dateRange, 5);
+
+
+  const modalRows = openModal === 'vencido' ? vencidosGastos : openModal === 'novencido' ? noVencidosGastos : openModal === 'pendiente' ? filteredActivos.filter((g) => g.pendiente > 0) : filtered;
 
   const columns: DataTableColumn<Gasto>[] = [
     {
@@ -181,12 +188,18 @@ export function Gastos({ data, loading }: GastosProps) {
 
   return (
     <div className="space-y-6">
+      {openModal && (
+        <MetricModal open onClose={() => setOpenModal(null)} title="Detalle de métrica" subtitle={label}>
+          <DataTable columns={columns} data={modalRows} />
+        </MetricModal>
+      )}
       <EntityFilters filters={filters} options={options} onChange={setFilters} />
 
       {/* Row 1 KPIs — period-filtered */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         <KpiCard
           title="Total Gastos"
+          onClick={() => setOpenModal('principal')}
           value={formatCurrency(totalGastos)}
           subtitle={`IVA incluido · ${label}`}
           icon={<TrendingDown className="w-5 h-5" />}
@@ -226,12 +239,14 @@ export function Gastos({ data, loading }: GastosProps) {
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         <KpiCard
           title="Pendiente Pagar"
+          onClick={() => setOpenModal('pendiente')}
           value={formatCurrency(totalPendiente)}
           icon={<Hourglass className="w-5 h-5" />}
           color="amber"
         />
         <KpiCard
           title="Vencidos sin Pagar"
+          onClick={() => setOpenModal('vencido')}
           value={formatCurrency(pendienteVencidoPago)}
           subtitle={`${countVencidoPago} facturas`}
           icon={<AlertTriangle className="w-5 h-5" />}
@@ -239,6 +254,7 @@ export function Gastos({ data, loading }: GastosProps) {
         />
         <KpiCard
           title="Pendiente No Vencido"
+          onClick={() => setOpenModal('novencido')}
           value={formatCurrency(pendienteNoVencidoPago)}
           subtitle={`${countNoVencidoPago} facturas`}
           color="amber"
