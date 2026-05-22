@@ -443,7 +443,7 @@ function YoyBarChart({ dataA, dataB, yearA, yearB, title, subtitle }: YoyChartPr
             iconSize={8}
           />
           <Bar dataKey={yearA} fill="#e4032d" radius={[3, 3, 0, 0]} maxBarSize={28} />
-          <Bar dataKey={yearB} fill="#dadada" radius={[3, 3, 0, 0]} maxBarSize={28} />
+          <Bar dataKey={yearB} fill="#9ca3af" radius={[3, 3, 0, 0]} maxBarSize={28} />
         </BarChart>
       </ResponsiveContainer>
     </ChartCard>
