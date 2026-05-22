@@ -17,6 +17,7 @@ interface KpiCardProps {
   color?: 'default' | 'red' | 'green' | 'amber' | 'blue';
   emphasis?: boolean;
   comparison?: KpiCardComparison;
+  onClick?: () => void;
 }
 
 const COLOR_BORDERS: Record<NonNullable<KpiCardProps['color']>, string> = {
@@ -45,12 +46,19 @@ export function KpiCard({
   color = 'default',
   emphasis = false,
   comparison,
+  onClick,
 }: KpiCardProps) {
   return (
     <div
+      role={onClick ? 'button' : undefined}
+      tabIndex={onClick ? 0 : undefined}
+      onClick={onClick}
+      onKeyDown={onClick ? (e) => { if (e.key === 'Enter' || e.key === ' ') onClick(); } : undefined}
       className={`card card-hover p-5 border-l-4 ${
         emphasis ? 'border-l-gep-red' : COLOR_BORDERS[color]
-      } flex items-start justify-between gap-3`}
+      } flex items-start justify-between gap-3 ${
+        onClick ? 'cursor-pointer select-none' : ''
+      }`}
     >
       <div className="min-w-0 flex-1">
         <div className="text-xs uppercase tracking-wider font-semibold text-gray-500 truncate">
