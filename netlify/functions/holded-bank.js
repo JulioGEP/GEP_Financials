@@ -1,7 +1,8 @@
 // Netlify Function: proxy for Holded Bank Accounts API
 // Uses API_HOLDED_KEY env var (set in Netlify dashboard).
+// Endpoint: GET /api/invoicing/v1/treasury → { accounts: [{id, name, balance, currency}] }
 
-const HOLDED_API_URL = 'https://api.holded.com/api/treasury/v1/bank';
+const HOLDED_API_URL = 'https://api.holded.com/api/invoicing/v1/treasury';
 
 const CORS_HEADERS = {
   'Access-Control-Allow-Origin': '*',
@@ -44,7 +45,18 @@ exports.handler = async function (event) {
       };
     }
 
-    const accounts = await response.json();
+    const body = await response.json();
+    // /api/invoicing/v1/treasury returns { accounts: [{id, name, balance, currency}] }
+    const raw = Array.isArray(body) ? body : (body.accounts ?? []);
+    const accounts = raw.map((a) => ({
+      id: a.id ?? a._id ?? String(Math.random()),
+      name: a.name ?? a.desc ?? 'Cuenta',
+      desc: a.desc,
+      balance: a.balance ?? 0,
+      currency: a.currency ?? 'EUR',
+      number: a.number,
+      active: a.active,
+    }));
 
     return {
       statusCode: 200,
