@@ -24,6 +24,14 @@ interface PipedriveApiResponse {
   error?: string;
 }
 
+// Parse "YYYY-MM-DD" or "YYYY-MM-DDTHH:mm:ssZ" safely without relying on
+// local timezone (new Date("YYYY-MM-DD") is UTC but getMonth() is local).
+function parsePeriodStart(period: string): { year: number; month: number } | null {
+  const m = period?.match(/^(\d{4})-(\d{2})/);
+  if (!m) return null;
+  return { year: parseInt(m[1], 10), month: parseInt(m[2], 10) - 1 };
+}
+
 const MONTH_LABELS = [
   'Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio',
   'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre',
@@ -93,16 +101,18 @@ async function fetchPipedrive(year: number): Promise<PipedriveApiResponse> {
   if (!res.ok || json.error) {
     throw new Error(json.error ?? `Error del servidor: ${res.status}`);
   }
+  // Log to console to aid debugging — visible in browser DevTools
+  console.log('[Pipedrive] API response:', JSON.stringify(json, null, 2));
   return json;
 }
 
-function monthsToArray(items: PipedriveMonthValue[], year: number): number[] {
+function monthsToArray(items: PipedriveMonthValue[], targetYear: number): number[] {
   const arr = new Array(12).fill(0);
   for (const item of items) {
-    if (!item.period) continue;
-    const d = new Date(item.period);
-    if (d.getUTCFullYear() === year) {
-      arr[d.getUTCMonth()] = item.value || 0;
+    const parsed = parsePeriodStart(item.period);
+    if (!parsed) continue;
+    if (parsed.year === targetYear) {
+      arr[parsed.month] = item.value || 0;
     }
   }
   return arr;
@@ -135,6 +145,7 @@ export function Pipedrive({ loading }: PipedriveProps) {
   const [objetivosByYear, setObjetivosByYear] = useState<Record<number, number[]>>({});
   const [loadingData, setLoadingData] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [noDataWarning, setNoDataWarning] = useState(false);
 
   useEffect(() => {
     let mounted = true;
@@ -144,6 +155,8 @@ export function Pipedrive({ loading }: PipedriveProps) {
         if (!mounted) return;
         setPipedrive(pd);
         setObjetivosByYear(objs);
+        const totalWon = (pd.current || []).reduce((s, m) => s + (m.value || 0), 0);
+        setNoDataWarning(totalWon === 0);
       })
       .catch((err: unknown) => {
         if (!mounted) return;
@@ -269,6 +282,28 @@ export function Pipedrive({ loading }: PipedriveProps) {
           <div className="text-sm">
             <p className="font-semibold text-amber-800 mb-1">No se pudieron cargar los datos</p>
             <p className="text-amber-700">{error}</p>
+          </div>
+        </div>
+      )}
+
+      {noDataWarning && !error && (
+        <div className="rounded-lg border border-blue-200 bg-blue-50 p-4 flex gap-3">
+          <AlertCircle className="w-5 h-5 text-blue-500 shrink-0 mt-0.5" />
+          <div className="text-sm">
+            <p className="font-semibold text-blue-800 mb-1">
+              Pipedrive no devolvió ventas ganadas para {year}
+            </p>
+            <p className="text-blue-700">
+              La API respondió correctamente pero todos los valores son 0. Posibles causas:
+            </p>
+            <ul className="text-blue-700 list-disc ml-4 mt-1 space-y-0.5">
+              <li>El token de API pertenece a una cuenta/pipeline diferente</li>
+              <li>Los negocios ganados no tienen el campo <code className="bg-blue-100 px-1 rounded">won_time</code> establecido (algunos usan <code className="bg-blue-100 px-1 rounded">close_time</code>)</li>
+              <li>La variable <code className="bg-blue-100 px-1 rounded">PIPEDRIVE_API_TOKEN</code> en Netlify no está disponible para deploys de preview</li>
+            </ul>
+            <p className="text-blue-600 mt-1 text-[11px]">
+              Abre la consola del navegador (F12 → Console) para ver la respuesta cruda de la API.
+            </p>
           </div>
         </div>
       )}
