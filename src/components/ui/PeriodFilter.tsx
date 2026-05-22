@@ -133,23 +133,28 @@ export function PeriodFilter() {
             </div>
           </div>
 
-          <div className="border-t border-gray-100" />
-          <div className="bg-gray-50 rounded-lg px-3 py-2.5 space-y-1.5">
-            <div className="flex items-start justify-between gap-2">
-              <span className="text-[10px] uppercase tracking-wider font-semibold text-gray-400 shrink-0 mt-0.5">Período</span>
-              <span className="text-[11px] font-semibold text-gep-dark text-right">
-                {fmtDate(dateRange.start)} – {fmtDate(dateRange.end)}
-              </span>
-            </div>
-            <div className="flex items-start justify-between gap-2">
-              <span className="text-[10px] uppercase tracking-wider font-semibold text-gray-400 shrink-0 mt-0.5">Comparando</span>
-              <span className="text-[11px] text-gray-500 text-right">
-                {fmtDate(prevDateRange.start)} – {fmtDate(prevDateRange.end)}
-              </span>
-            </div>
-          </div>
         </div>
       )}
+    </div>
+  );
+}
+
+export function PeriodInfo() {
+  const { dateRange, prevDateRange } = usePeriod();
+  return (
+    <div className="hidden md:flex flex-col items-end gap-0.5">
+      <div className="flex items-center gap-1.5">
+        <span className="text-[10px] uppercase tracking-wider font-semibold text-gray-400">Período</span>
+        <span className="text-[11px] font-semibold text-gep-dark">
+          {fmtDate(dateRange.start)} – {fmtDate(dateRange.end)}
+        </span>
+      </div>
+      <div className="flex items-center gap-1.5">
+        <span className="text-[10px] uppercase tracking-wider font-semibold text-gray-400">Comparando</span>
+        <span className="text-[11px] text-gray-500">
+          {fmtDate(prevDateRange.start)} – {fmtDate(prevDateRange.end)}
+        </span>
+      </div>
     </div>
   );
 }
