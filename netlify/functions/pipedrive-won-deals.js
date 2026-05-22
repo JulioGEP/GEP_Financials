@@ -13,53 +13,104 @@ const CORS_HEADERS = {
 };
 
 /**
- * Extracts a numeric value from a Pipedrive interval object.
- * Tries every known path in the response to handle different
- * account configurations and API versions.
+ * Sums numeric values from an object whose keys are currency codes
+ * (e.g. { EUR: 1234.56, USD: 200 }). Returns 0 if not a usable object.
+ */
+function sumCurrencyObject(obj) {
+  if (!obj || typeof obj !== 'object') return 0;
+  let total = 0;
+  for (const key of Object.keys(obj)) {
+    const n = Number(obj[key]);
+    if (Number.isFinite(n)) total += n;
+  }
+  return total;
+}
+
+/**
+ * Extracts a numeric value (in EUR if possible) from a Pipedrive
+ * deals/timeline interval. The API response structure differs by
+ * account config and version; this tries every known path.
+ *
+ * Known structures observed:
+ *   - totals_converted.values_total        : number (after currency convert)
+ *   - totals_converted.values_total.EUR    : number (older API)
+ *   - totals.values                        : { EUR: n, USD: n, ... }
+ *   - totals.values_total                  : number
+ *   - totals.weighted_values               : { EUR: n, ... }
+ *   - totals.weighted_values_total         : number
  */
 function extractValue(interval) {
-  // Path 1: totals_converted.values_total.EUR  (object with currency keys)
   const tc = interval.totals_converted;
-  if (tc && tc.values_total != null) {
-    const vt = tc.values_total;
-    if (typeof vt === 'number' && vt > 0) return vt;
-    if (typeof vt === 'object' && vt !== null) {
-      // Try EUR first, then any other currency
-      if (vt.EUR != null && vt.EUR > 0) return Number(vt.EUR);
-      const keys = Object.keys(vt);
-      for (const k of keys) {
+  if (tc) {
+    // totals_converted.values_total as plain number
+    if (typeof tc.values_total === 'number' && tc.values_total > 0) {
+      return tc.values_total;
+    }
+    // totals_converted.values_total as object keyed by currency
+    if (tc.values_total && typeof tc.values_total === 'object') {
+      const vt = tc.values_total;
+      if (vt.EUR != null && Number(vt.EUR) > 0) return Number(vt.EUR);
+      for (const k of Object.keys(vt)) {
         if (vt[k] != null && Number(vt[k]) > 0) return Number(vt[k]);
       }
-      // Return EUR even if 0 (legitimate zero month)
-      if (vt.EUR != null) return Number(vt.EUR);
-      if (keys.length > 0 && vt[keys[0]] != null) return Number(vt[keys[0]]);
+    }
+    // weighted as fallback under totals_converted
+    if (typeof tc.weighted_values_total === 'number' && tc.weighted_values_total > 0) {
+      return tc.weighted_values_total;
     }
   }
 
-  // Path 2: totals.values_total  (non-converted, plain number)
   const t = interval.totals;
   if (t) {
-    if (t.values_total != null && Number(t.values_total) >= 0) {
-      return Number(t.values_total);
+    // totals.values_total as number
+    if (typeof t.values_total === 'number' && t.values_total > 0) {
+      return t.values_total;
     }
-    if (t.weighted_values_total != null) {
-      return Number(t.weighted_values_total);
+    // totals.values is an object keyed by currency — the most common shape
+    if (t.values && typeof t.values === 'object') {
+      if (t.values.EUR != null && Number(t.values.EUR) > 0) return Number(t.values.EUR);
+      // No EUR (or EUR is 0): sum every currency we got (best-effort,
+      // assumes amounts are comparable — better than reporting 0)
+      const sum = sumCurrencyObject(t.values);
+      if (sum > 0) return sum;
     }
+    if (typeof t.weighted_values_total === 'number' && t.weighted_values_total > 0) {
+      return t.weighted_values_total;
+    }
+    if (t.weighted_values && typeof t.weighted_values === 'object') {
+      if (t.weighted_values.EUR != null && Number(t.weighted_values.EUR) > 0) {
+        return Number(t.weighted_values.EUR);
+      }
+      const sum = sumCurrencyObject(t.weighted_values);
+      if (sum > 0) return sum;
+    }
+  }
+
+  // Last-resort: sum deal values from the deals array if present
+  if (Array.isArray(interval.deals) && interval.deals.length > 0) {
+    let sum = 0;
+    for (const d of interval.deals) {
+      const v = Number(d.value ?? d.formatted_value ?? 0);
+      if (Number.isFinite(v) && v > 0) sum += v;
+    }
+    if (sum > 0) return sum;
   }
 
   return 0;
 }
 
-async function fetchTimeline(year, token, fieldKey) {
+async function fetchTimeline(year, token, fieldKey, options = {}) {
   const params = new URLSearchParams({
     start_date: `${year}-01-01`,
     interval: 'month',
     amount: '12',
     field_key: fieldKey,
-    exclude_deals: '1',
-    totals_convert_currency: 'EUR',
+    exclude_deals: options.excludeDeals ? '1' : '0',
     api_token: token,
   });
+  if (options.convertEUR) {
+    params.set('totals_convert_currency', 'EUR');
+  }
 
   const response = await fetch(`${BASE_URL}/deals/timeline?${params}`);
   if (!response.ok) {
@@ -73,29 +124,47 @@ async function fetchTimeline(year, token, fieldKey) {
   return json.data || [];
 }
 
-async function getWonDealsByMonth(year, token) {
-  // Try won_time first (correct field for won deals).
-  // Log raw intervals to Netlify function logs for debugging.
-  const intervals = await fetchTimeline(year, token, 'won_time');
-
-  console.log(`[pipedrive] year=${year} intervals=${intervals.length}`);
-  if (intervals.length > 0) {
-    // Log first interval structure (no token) to aid debugging
-    const sample = intervals[0];
-    console.log(`[pipedrive] sample interval keys: ${Object.keys(sample).join(', ')}`);
-    console.log(`[pipedrive] sample totals: ${JSON.stringify(sample.totals)}`);
-    console.log(`[pipedrive] sample totals_converted: ${JSON.stringify(sample.totals_converted)}`);
-  }
-
-  const mapped = intervals.map((interval) => ({
+function mapIntervals(intervals) {
+  return intervals.map((interval) => ({
     period: interval.period_start,
     value: extractValue(interval),
     count: interval.totals?.count ?? 0,
   }));
+}
 
-  const totalValue = mapped.reduce((s, m) => s + m.value, 0);
+async function getWonDealsByMonth(year, token) {
+  // First attempt: won_time + EUR conversion, deals excluded for payload size.
+  let intervals = await fetchTimeline(year, token, 'won_time', {
+    excludeDeals: true,
+    convertEUR: true,
+  });
+
+  console.log(`[pipedrive] year=${year} field=won_time intervals=${intervals.length}`);
+  if (intervals.length > 0) {
+    const sample = intervals[0];
+    console.log(`[pipedrive] sample keys: ${Object.keys(sample).join(', ')}`);
+    console.log(`[pipedrive] sample totals: ${JSON.stringify(sample.totals)}`);
+    console.log(`[pipedrive] sample totals_converted: ${JSON.stringify(sample.totals_converted)}`);
+  }
+
+  let mapped = mapIntervals(intervals);
+  let totalValue = mapped.reduce((s, m) => s + m.value, 0);
+  const totalCount = mapped.reduce((s, m) => s + m.count, 0);
+
+  // If the count says we have deals but the total is 0, currency conversion
+  // is likely the problem (no EUR rate configured). Re-fetch including deals
+  // so extractValue can sum native deal values as a fallback.
+  if (totalValue === 0 && totalCount > 0) {
+    console.log(`[pipedrive] year=${year} retry: count=${totalCount} but value=0, refetching with deals`);
+    intervals = await fetchTimeline(year, token, 'won_time', {
+      excludeDeals: false,
+      convertEUR: false,
+    });
+    mapped = mapIntervals(intervals);
+    totalValue = mapped.reduce((s, m) => s + m.value, 0);
+  }
+
   console.log(`[pipedrive] year=${year} total won value=${totalValue}`);
-
   return mapped;
 }
 
