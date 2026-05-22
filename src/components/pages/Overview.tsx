@@ -23,6 +23,7 @@ import {
   AlertTriangle,
   Clock,
   CalendarCheck,
+  Users,
 } from 'lucide-react';
 import type { FinancialData, Venta, Gasto } from '../../types/financial';
 import { KpiCard, KpiCardSkeleton } from '../ui/KpiCard';
@@ -38,6 +39,7 @@ import {
   gastosActivos,
   filterByDateRange,
   daysBetween,
+  isGastoPersonal,
 } from '../../lib/calculations';
 import { generateAlerts } from '../../lib/alerts';
 import { usePeriod } from '../../context/PeriodContext';
@@ -55,6 +57,7 @@ type MetricKey =
   | 'working'
   | 'pendienteCobrar'
   | 'pendientePagar'
+  | 'pendientePersonal'
   | 'cobrosVencidos'
   | 'pagosVencidos'
   | 'dso'
@@ -329,7 +332,9 @@ function CajaModal({ ventas, gastos }: { ventas: Venta[]; gastos: Gasto[] }) {
 
 function WorkingCapitalModal({ ventas, gastos }: { ventas: Venta[]; gastos: Gasto[] }) {
   const pendienteCobrar = ventas.reduce((s, v) => s + v.pendiente, 0);
-  const pendientePagar = gastos.reduce((s, g) => s + g.pendiente, 0);
+  const pendienteProveedores = gastos.filter(g => !isGastoPersonal(g)).reduce((s, g) => s + g.pendiente, 0);
+  const pendientePersonal = gastos.filter(isGastoPersonal).reduce((s, g) => s + g.pendiente, 0);
+  const pendientePagar = pendienteProveedores + pendientePersonal;
   const wc = pendienteCobrar - pendientePagar;
 
   // Top clientes con pendiente
@@ -340,20 +345,21 @@ function WorkingCapitalModal({ ventas, gastos }: { ventas: Venta[]; gastos: Gast
   }
   const topClientes = Array.from(clienteMap.entries()).sort((a, b) => b[1] - a[1]).slice(0, 10);
 
-  // Top proveedores con pendiente
+  // Top proveedores con pendiente (excluyendo personal)
   const proveedorMap = new Map<string, number>();
   for (const g of gastos) {
-    if (g.pendiente <= 0) continue;
+    if (g.pendiente <= 0 || isGastoPersonal(g)) continue;
     proveedorMap.set(g.proveedor, (proveedorMap.get(g.proveedor) ?? 0) + g.pendiente);
   }
   const topProveedores = Array.from(proveedorMap.entries()).sort((a, b) => b[1] - a[1]).slice(0, 10);
 
   return (
     <div>
-      <div className="grid grid-cols-3 gap-4 mb-5">
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-5">
         {[
           { label: 'Pendiente cobrar', value: formatCurrency(pendienteCobrar), color: 'text-amber-600' },
-          { label: 'Pendiente pagar', value: formatCurrency(pendientePagar), color: 'text-gep-red' },
+          { label: 'Pend. proveedores', value: formatCurrency(pendienteProveedores), color: 'text-gep-red' },
+          { label: 'Pend. personal', value: formatCurrency(pendientePersonal), color: 'text-orange-500' },
           { label: 'Capital de trabajo', value: formatCurrency(wc), color: wc >= 0 ? 'text-green-600' : 'text-gep-red' },
         ].map((s) => (
           <div key={s.label} className="rounded-xl bg-gray-50 p-4">
@@ -445,7 +451,7 @@ function PendientePagarModal({ gastos }: { gastos: Gasto[] }) {
   const today = new Date();
   today.setHours(0, 0, 0, 0);
   const pending = gastos
-    .filter((g) => g.pendiente > 0)
+    .filter((g) => g.pendiente > 0 && !isGastoPersonal(g))
     .sort((a, b) => (a.vencimiento?.getTime() ?? 0) - (b.vencimiento?.getTime() ?? 0));
   const total = pending.reduce((s, g) => s + g.pendiente, 0);
   const vencido = pending.filter(g => g.vencimiento && g.vencimiento < today).reduce((s, g) => s + g.pendiente, 0);
@@ -453,7 +459,7 @@ function PendientePagarModal({ gastos }: { gastos: Gasto[] }) {
     <div>
       <div className="grid grid-cols-3 gap-4 mb-5">
         {[
-          { label: 'Total pendiente pagar', value: formatCurrency(total), color: 'text-amber-600' },
+          { label: 'Total pend. proveedores', value: formatCurrency(total), color: 'text-amber-600' },
           { label: 'Del que vencido', value: formatCurrency(vencido), color: 'text-gep-red' },
           { label: 'Facturas pendientes', value: String(pending.length), color: 'text-gep-dark' },
         ].map((s) => (
@@ -484,7 +490,60 @@ function PendientePagarModal({ gastos }: { gastos: Gasto[] }) {
             })}
           </tbody>
         </table>
-        {pending.length === 0 && <p className="text-center text-gray-400 py-8">Sin facturas pendientes.</p>}
+        {pending.length === 0 && <p className="text-center text-gray-400 py-8">Sin facturas de proveedores pendientes.</p>}
+      </div>
+    </div>
+  );
+}
+
+function NominasModal({ gastos }: { gastos: Gasto[] }) {
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const pending = gastos
+    .filter((g) => g.pendiente > 0 && isGastoPersonal(g))
+    .sort((a, b) => (a.vencimiento?.getTime() ?? 0) - (b.vencimiento?.getTime() ?? 0));
+  const all = gastos
+    .filter(isGastoPersonal)
+    .sort((a, b) => (a.vencimiento?.getTime() ?? 0) - (b.vencimiento?.getTime() ?? 0));
+  const totalPendiente = pending.reduce((s, g) => s + g.pendiente, 0);
+  const totalPagado = all.reduce((s, g) => s + g.pagado, 0);
+  const vencido = pending.filter(g => g.vencimiento && g.vencimiento < today).reduce((s, g) => s + g.pendiente, 0);
+  return (
+    <div>
+      <div className="grid grid-cols-3 gap-4 mb-5">
+        {[
+          { label: 'Nóminas pend. de pago', value: formatCurrency(totalPendiente), color: 'text-amber-600' },
+          { label: 'Del que vencido', value: formatCurrency(vencido), color: 'text-gep-red' },
+          { label: 'Ya pagado (mismo período)', value: formatCurrency(totalPagado), color: 'text-green-600' },
+        ].map((s) => (
+          <div key={s.label} className="rounded-xl bg-gray-50 p-4">
+            <div className="text-xs text-gray-500 mb-1">{s.label}</div>
+            <div className={`text-lg font-bold ${s.color}`}>{s.value}</div>
+          </div>
+        ))}
+      </div>
+      <div className="overflow-x-auto">
+        <table className="w-full text-sm">
+          <TableHeader cols={['Vencimiento', 'Nº', 'Descripción', 'Cuenta', 'Total', 'Pagado', 'Pendiente', 'Estado']} />
+          <tbody>
+            {all.map((g, i) => {
+              const overdue = g.pendiente > 0 && g.vencimiento && g.vencimiento < today;
+              return (
+                <tr key={i} className="border-b border-gray-50 hover:bg-gray-50 transition-colors">
+                  <td className={`py-2 pr-4 whitespace-nowrap ${overdue ? 'text-gep-red font-semibold' : 'text-gray-500'}`}>{fmtDate(g.vencimiento)}</td>
+                  <td className="py-2 pr-4 font-mono text-xs text-gray-600 whitespace-nowrap">{g.num}</td>
+                  <td className="py-2 pr-4 text-gray-500 max-w-[220px] truncate">{g.descripcion || g.proveedor}</td>
+                  <td className="py-2 pr-4 text-gray-500 max-w-[140px] truncate">{g.cuenta}</td>
+                  <td className="py-2 pr-4 text-right text-gray-600 whitespace-nowrap">{formatCurrency(g.total)}</td>
+                  <td className="py-2 pr-4 text-right text-green-600 whitespace-nowrap">{formatCurrency(g.pagado)}</td>
+                  <td className={`py-2 pr-4 text-right font-semibold whitespace-nowrap ${g.pendiente > 0 ? 'text-amber-600' : 'text-gray-400'}`}>{formatCurrency(g.pendiente)}</td>
+                  <td className="py-2"><EstadoBadge estado={g.estado} /></td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+        {all.length === 0 && <p className="text-center text-gray-400 py-8">Sin gastos de personal registrados.</p>}
       </div>
     </div>
   );
@@ -755,9 +814,14 @@ export function Overview({ data, loading }: OverviewProps) {
       content: <PendienteCobrarModal ventas={allActiveVentas} />,
     },
     pendientePagar: {
-      title: 'Pendiente Pagar',
-      subtitle: 'Facturas de gastos con importe pendiente',
+      title: 'Pendiente Pagar — Proveedores',
+      subtitle: 'Facturas de proveedores con importe pendiente (excluye personal)',
       content: <PendientePagarModal gastos={allActiveGastos} />,
+    },
+    pendientePersonal: {
+      title: 'Nóminas y Personal Pendiente',
+      subtitle: 'Gastos de personal (grupo 64 PGC) con importe pendiente',
+      content: <NominasModal gastos={allActiveGastos} />,
     },
     cobrosVencidos: {
       title: 'Cobros Vencidos',
@@ -848,7 +912,7 @@ export function Overview({ data, loading }: OverviewProps) {
       </div>
 
       {/* Row 2 - Tesorería */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-4">
         <KpiCard
           title="Posición de Caja"
           value={formatCurrency(kpis.posicionCaja)}
@@ -875,12 +939,20 @@ export function Overview({ data, loading }: OverviewProps) {
           onClick={() => open('pendienteCobrar')}
         />
         <KpiCard
-          title="Pendiente Pagar"
-          value={formatCurrency(kpis.pendientePagar)}
-          subtitle={`Del que vencido: ${formatCurrency(kpis.pendientePagarVencido)}`}
+          title="Pend. Proveedores"
+          value={formatCurrency(kpis.pendienteProveedores)}
+          subtitle={`Del que vencido: ${formatCurrency(kpis.pendienteProveedoresVencido)}`}
           icon={<ReceiptText className="w-5 h-5" />}
           color="amber"
           onClick={() => open('pendientePagar')}
+        />
+        <KpiCard
+          title="Nóminas Pendientes"
+          value={formatCurrency(kpis.pendientePersonal)}
+          subtitle={`Del que vencido: ${formatCurrency(kpis.pendientePersonalVencido)}`}
+          icon={<Users className="w-5 h-5" />}
+          color="amber"
+          onClick={() => open('pendientePersonal')}
         />
       </div>
 
