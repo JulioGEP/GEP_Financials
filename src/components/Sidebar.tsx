@@ -6,6 +6,7 @@ import {
   Wallet,
   AlertTriangle,
   CreditCard,
+  Target,
 } from 'lucide-react';
 
 const NAV_ITEMS = [
@@ -14,6 +15,7 @@ const NAV_ITEMS = [
   { to: '/gastos', label: 'Gastos', icon: TrendingDown },
   { to: '/cashflow', label: 'Flujo de Caja', icon: Wallet },
   { to: '/deuda', label: 'Deuda', icon: CreditCard },
+  { to: '/objetivos', label: 'Objetivos', icon: Target },
   { to: '/alertas', label: 'Alertas', icon: AlertTriangle },
 ];
 

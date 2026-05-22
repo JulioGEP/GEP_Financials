@@ -7,6 +7,7 @@ import { Gastos } from './components/pages/Gastos';
 import { CashFlow } from './components/pages/CashFlow';
 import { Deuda } from './components/pages/Deuda';
 import { Alertas } from './components/pages/Alertas';
+import { Objetivos } from './components/pages/Objetivos';
 import { PeriodProvider } from './context/PeriodContext';
 
 export default function App() {
@@ -82,6 +83,20 @@ export default function App() {
             onRefresh={() => void refresh()}
           >
             <Deuda data={data} loading={loading} />
+          </Layout>
+        }
+      />
+      <Route
+        path="/objetivos"
+        element={
+          <Layout
+            title="Objetivos"
+            subtitle="Totales por mes y línea de negocio"
+            data={data}
+            isRefreshing={isRefreshing}
+            onRefresh={() => void refresh()}
+          >
+            <Objetivos loading={loading} />
           </Layout>
         }
       />
