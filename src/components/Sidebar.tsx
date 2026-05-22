@@ -7,6 +7,7 @@ import {
   AlertTriangle,
   CreditCard,
   Target,
+  GitCompareArrows,
 } from 'lucide-react';
 import gepGroupLogo from './ui/GEP_Logo_Icono_BLANCO.png';
 
@@ -17,6 +18,7 @@ const NAV_ITEMS = [
   { to: '/cashflow', label: 'Flujo de Caja', icon: Wallet },
   { to: '/deuda', label: 'Deuda', icon: CreditCard },
   { to: '/objetivos', label: 'Objetivos', icon: Target },
+  { to: '/comparativas', label: 'Comparativas', icon: GitCompareArrows },
   { to: '/alertas', label: 'Alertas', icon: AlertTriangle },
 ];
 
