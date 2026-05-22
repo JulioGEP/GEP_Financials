@@ -1,5 +1,7 @@
 // Financial calculations and aggregations
 import type { Venta, Gasto, FinancialData } from '../types/financial';
+import type { DateRange } from './periodUtils';
+import { monthsInRange } from './periodUtils';
 
 const MS_PER_DAY = 24 * 60 * 60 * 1000;
 
@@ -61,15 +63,32 @@ export interface OverviewKpis {
   saldoIVA: number;
 }
 
-export function computeOverviewKpis(data: FinancialData, now = new Date()): OverviewKpis {
+export function filterByDateRange<T extends { fecha?: Date | null; fechaEmision?: Date | null }>(
+  items: T[],
+  range: DateRange,
+  field: 'fecha' | 'fechaEmision' = 'fecha'
+): T[] {
+  return items.filter((it) => {
+    const d = field === 'fechaEmision'
+      ? (it as any).fechaEmision
+      : ((it as any).fecha ?? (it as any).fechaEmision);
+    return d instanceof Date && d >= range.start && d <= range.end;
+  });
+}
+
+export function computeOverviewKpis(data: FinancialData, dateRange?: DateRange, now = new Date()): OverviewKpis {
   const today = new Date(now);
   today.setHours(0, 0, 0, 0);
 
   const activeVentas = ventasActivas(data.ventas);
   const activeGastos = gastosActivos(data.gastos);
 
-  const ventasYTD = ytdFilter(activeVentas, now);
-  const gastosYTD = ytdFilter(activeGastos, now);
+  const ventasYTD = dateRange
+    ? activeVentas.filter(v => v.fecha && v.fecha >= dateRange.start && v.fecha <= dateRange.end)
+    : ytdFilter(activeVentas, now);
+  const gastosYTD = dateRange
+    ? activeGastos.filter(g => g.fechaEmision && g.fechaEmision >= dateRange.start && g.fechaEmision <= dateRange.end)
+    : ytdFilter(activeGastos, now);
 
   // P&L with IVA (total)
   const ingresosYTD = sum(ventasYTD, (v) => v.total);
@@ -661,4 +680,29 @@ export function overduePayables(data: FinancialData, now = new Date()): Gasto[] 
   return data.gastos
     .filter((g) => g.pendiente > 0 && g.vencimiento && g.vencimiento.getTime() < today.getTime())
     .sort((a, b) => (a.vencimiento!.getTime() - b.vencimiento!.getTime()));
+}
+
+// Range-aware wrappers that derive monthsBack from a DateRange
+export function monthlyDataForRange(data: FinancialData, range: DateRange): MonthlyPoint[] {
+  const months = Math.max(1, monthsInRange(range.start, range.end));
+  return monthlyRevenueVsExpenses(data, months, range.end);
+}
+
+export function cashFlowDataForRange(data: FinancialData, range: DateRange): MonthlyCashFlowPoint[] {
+  const months = Math.max(1, monthsInRange(range.start, range.end));
+  return monthlyCobrosYPagos(data, months, range.end);
+}
+
+export function ventasStackedForRange(ventas: Venta[], range: DateRange): MonthlyVentasStackedPoint[] {
+  const months = Math.max(1, monthsInRange(range.start, range.end));
+  return monthlyVentasStacked(ventas, months, range.end);
+}
+
+export function cuentaGastosForRange(
+  gastos: Gasto[],
+  range: DateRange,
+  top = 5
+): { data: Array<Record<string, string | number>>; cuentas: string[] } {
+  const months = Math.max(1, monthsInRange(range.start, range.end));
+  return monthlyCuentaGastos(gastos, months, top, range.end);
 }

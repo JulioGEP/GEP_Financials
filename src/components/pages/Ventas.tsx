@@ -29,11 +29,13 @@ import {
   agingAnalysis,
   topClientes,
   ventasActivas,
-  monthlyVentasStacked,
+  ventasStackedForRange,
   estadoDistributionVentas,
   computeOverviewKpis,
+  filterByDateRange,
   sum,
 } from '../../lib/calculations';
+import { usePeriod } from '../../context/PeriodContext';
 import type { Venta } from '../../types/financial';
 
 interface VentasProps {
@@ -41,19 +43,38 @@ interface VentasProps {
   loading: boolean;
 }
 
+function pctDelta(current: number, prev: number): number {
+  if (prev === 0) return current === 0 ? 0 : 100;
+  return ((current - prev) / Math.abs(prev)) * 100;
+}
+
+function fmtDelta(delta: number): string {
+  return `${delta >= 0 ? '+' : ''}${delta.toFixed(1)}%`;
+}
+
+function deltaDir(delta: number): 'up' | 'down' | 'neutral' {
+  if (delta > 0.5) return 'up';
+  if (delta < -0.5) return 'down';
+  return 'neutral';
+}
+
 export function Ventas({ data, loading }: VentasProps) {
+  const { dateRange, prevDateRange, label } = usePeriod();
+
   if (loading || !data) return <VentasSkeleton />;
 
   const activas = ventasActivas(data.ventas);
+  const filtered = filterByDateRange(activas, dateRange, 'fecha');
+  const prevFiltered = filterByDateRange(activas, prevDateRange, 'fecha');
 
-  // Row 1 metrics
-  const totalFacturado = sum(data.ventas, (v) => v.total);
-  const totalActiveFacturado = sum(activas, (v) => v.total);
-  const totalActivoSinIVA = sum(activas, (v) => v.subtotal);
-  const totalCobrado = sum(activas, (v) => v.cobrado);
-  const tasaCobro = totalActiveFacturado > 0 ? (totalCobrado / totalActiveFacturado) * 100 : 0;
+  // Row 1 metrics (period-filtered)
+  const totalFacturado = sum(filtered, (v) => v.total);
+  const prevTotalFacturado = sum(prevFiltered, (v) => v.total);
+  const totalActivoSinIVA = sum(filtered, (v) => v.subtotal);
+  const totalCobrado = sum(filtered, (v) => v.cobrado);
+  const tasaCobro = totalFacturado > 0 ? (totalCobrado / totalFacturado) * 100 : 0;
 
-  // Row 2 metrics
+  // Row 2 metrics (always-current — pending state)
   const totalPendiente = sum(activas, (v) => v.pendiente);
   const vencidasVentas = activas.filter((v) => v.estado === 'Vencido');
   const pendienteVencido = sum(vencidasVentas, (v) => v.pendiente);
@@ -65,14 +86,16 @@ export function Ventas({ data, loading }: VentasProps) {
   const totalAnulado = sum(anuladasVentas, (v) => v.total);
   const countAnulado = anuladasVentas.length;
 
-  // DSO from kpis
+  // DSO from kpis (all-time)
   const kpis = computeOverviewKpis(data);
   const dso = kpis.diasCobroMedio;
 
+  const deltaFacturado = pctDelta(totalFacturado, prevTotalFacturado);
+
   // Charts data
-  const stackedMonthly = monthlyVentasStacked(data.ventas, 12);
-  const estadoDist = estadoDistributionVentas(data.ventas);
-  const clientes = topClientes(activas, 8);
+  const stackedMonthly = ventasStackedForRange(activas, dateRange);
+  const estadoDist = estadoDistributionVentas(filtered.length > 0 ? filtered : activas);
+  const clientes = topClientes(filtered.length > 0 ? filtered : activas, 8);
   const aging = agingAnalysis(activas);
 
   const columns: DataTableColumn<Venta>[] = [
@@ -121,19 +144,24 @@ export function Ventas({ data, loading }: VentasProps) {
   return (
     <div className="space-y-6">
 
-      {/* Row 1 KPIs */}
+      {/* Row 1 KPIs — period-filtered */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         <KpiCard
           title="Total Facturado"
           value={formatCurrency(totalFacturado)}
-          subtitle="Todas las facturas"
+          subtitle={label}
           icon={<TrendingUp className="w-5 h-5" />}
           color="green"
           emphasis
+          comparison={{
+            prevValue: formatCurrency(prevTotalFacturado),
+            delta: fmtDelta(deltaFacturado),
+            direction: deltaDir(deltaFacturado),
+          }}
         />
         <KpiCard
           title="Neto Facturable"
-          value={formatCurrency(totalActiveFacturado)}
+          value={formatCurrency(totalFacturado)}
           subtitle={`Sin IVA: ${formatCurrency(totalActivoSinIVA)}`}
           icon={<TrendingUp className="w-5 h-5" />}
           color="green"
@@ -156,7 +184,7 @@ export function Ventas({ data, loading }: VentasProps) {
         />
       </div>
 
-      {/* Row 2 KPIs */}
+      {/* Row 2 KPIs — current state */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         <KpiCard
           title="Pendiente Total"
@@ -188,7 +216,7 @@ export function Ventas({ data, loading }: VentasProps) {
 
       {/* Charts Row 1 */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-        <ChartCard title="Facturación mensual" subtitle="Cobrado · Pendiente · Vencido (últimos 12 meses)">
+        <ChartCard title="Facturación mensual" subtitle={`Cobrado · Pendiente · Vencido · ${label}`}>
           <ResponsiveContainer width="100%" height={280}>
             <BarChart data={stackedMonthly} margin={{ top: 5, right: 5, left: 0, bottom: 0 }}>
               <CartesianGrid strokeDasharray="3 3" stroke="#eee" />
@@ -210,7 +238,7 @@ export function Ventas({ data, loading }: VentasProps) {
           </ResponsiveContainer>
         </ChartCard>
 
-        <ChartCard title="Distribución por estado" subtitle="Valor de facturas por estado">
+        <ChartCard title="Distribución por estado" subtitle={`Valor de facturas por estado · ${label}`}>
           <ResponsiveContainer width="100%" height={280}>
             <PieChart>
               <Pie
@@ -241,7 +269,7 @@ export function Ventas({ data, loading }: VentasProps) {
 
       {/* Charts Row 2 */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-        <ChartCard title="Top 8 Clientes" subtitle="Por importe facturado (activas)">
+        <ChartCard title={`Top 8 Clientes · ${label}`} subtitle="Por importe facturado (período)">
           <ResponsiveContainer width="100%" height={300}>
             <BarChart
               data={clientes}
@@ -294,14 +322,17 @@ export function Ventas({ data, loading }: VentasProps) {
 
       {/* Table */}
       <div>
-        <h2 className="text-sm uppercase tracking-wider font-semibold text-gray-500 mb-3">
-          Listado de facturas
+        <h2 className="text-sm uppercase tracking-wider font-semibold text-gray-500 mb-1">
+          Listado de facturas · {label}
         </h2>
+        <p className="text-xs text-gray-400 mb-3">
+          {filtered.length} factura(s) en el periodo · {data.ventas.length} en total
+        </p>
         <DataTable
           columns={columns}
-          data={data.ventas}
-          exportFileName="ventas.csv"
-          emptyMessage="No hay facturas de venta"
+          data={filtered}
+          exportFileName={`ventas_${label.replace(/\s/g, '_')}.csv`}
+          emptyMessage="No hay facturas de venta en el periodo seleccionado"
         />
       </div>
     </div>

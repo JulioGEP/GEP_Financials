@@ -1,5 +1,6 @@
 import { RefreshCw, Database, CloudOff } from 'lucide-react';
 import { formatDateTime } from '../lib/parseData';
+import { PeriodFilter } from './ui/PeriodFilter';
 
 interface HeaderProps {
   title: string;
@@ -27,6 +28,7 @@ export function Header({
         )}
       </div>
       <div className="flex items-center gap-3 shrink-0">
+        <PeriodFilter />
         {source && (
           <span
             className={`inline-flex items-center gap-1.5 text-xs font-semibold ${

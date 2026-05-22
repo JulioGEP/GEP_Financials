@@ -1,6 +1,12 @@
 import type { ReactNode } from 'react';
 import { ArrowDown, ArrowRight, ArrowUp } from 'lucide-react';
 
+interface KpiCardComparison {
+  prevValue: string;
+  delta: string;
+  direction: 'up' | 'down' | 'neutral';
+}
+
 interface KpiCardProps {
   title: string;
   value: string;
@@ -10,6 +16,7 @@ interface KpiCardProps {
   icon?: ReactNode;
   color?: 'default' | 'red' | 'green' | 'amber' | 'blue';
   emphasis?: boolean;
+  comparison?: KpiCardComparison;
 }
 
 const COLOR_BORDERS: Record<NonNullable<KpiCardProps['color']>, string> = {
@@ -37,6 +44,7 @@ export function KpiCard({
   icon,
   color = 'default',
   emphasis = false,
+  comparison,
 }: KpiCardProps) {
   return (
     <div
@@ -68,6 +76,25 @@ export function KpiCard({
             {trendDirection === 'down' && <ArrowDown className="w-3 h-3" />}
             {trendDirection === 'neutral' && <ArrowRight className="w-3 h-3" />}
             <span>{trend}</span>
+          </div>
+        )}
+        {comparison && (
+          <div className="mt-1.5 flex items-center gap-1 text-[11px] text-gray-400">
+            <span>vs. año ant.:</span>
+            <span className="font-medium text-gray-500">{comparison.prevValue}</span>
+            <span
+              className={`font-semibold ${
+                comparison.direction === 'up'
+                  ? 'text-green-600'
+                  : comparison.direction === 'down'
+                  ? 'text-gep-red'
+                  : 'text-gray-400'
+              }`}
+            >
+              {comparison.direction === 'up' && '▲'}
+              {comparison.direction === 'down' && '▼'}
+              {' '}{comparison.delta}
+            </span>
           </div>
         )}
       </div>
