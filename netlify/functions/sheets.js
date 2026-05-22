@@ -48,6 +48,21 @@ exports.handler = async function (event) {
 
     const csv = await response.text();
 
+    // If Google returned an HTML page (private sheet or wrong GID), surface a clear error
+    const trimmed = csv.trimStart();
+    if (trimmed.startsWith('<!DOCTYPE') || trimmed.startsWith('<html') || trimmed.startsWith('<HTML')) {
+      return {
+        statusCode: 403,
+        headers: CORS_HEADERS,
+        body: JSON.stringify({
+          error: 'La hoja de Google Sheets no es accesible públicamente o el GID es incorrecto. Verifica que la hoja esté compartida como "cualquiera con el enlace puede ver" y que el GID apunte a la pestaña correcta.',
+          sheet,
+          gid,
+          timestamp: new Date().toISOString(),
+        }),
+      };
+    }
+
     return {
       statusCode: 200,
       headers: CORS_HEADERS,
