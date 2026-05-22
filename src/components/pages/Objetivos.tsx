@@ -23,24 +23,32 @@ interface ObjetivosProps {
 
 const MESES = ['enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio', 'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre'];
 
+function getField(row: Record<string, string>, keys: string[]): string {
+  for (const key of keys) {
+    const found = Object.keys(row).find((k) => k.toLowerCase().trim() === key.toLowerCase().trim());
+    if (found) return (row[found] || '').trim();
+  }
+  return '';
+}
+
 function parseObjetivosCSV(csv: string): ObjetivoMensual[] {
-  const parsed = Papa.parse<string[]>(csv, {
-    header: false,
+  const parsed = Papa.parse<Record<string, string>>(csv, {
+    header: true,
     skipEmptyLines: true,
+    transformHeader: (header) => header.trim(),
   });
 
   return parsed.data
-    .slice(1)
-    .filter((row) => row.length >= 8 && MESES.includes((row[1] || '').trim().toLowerCase()))
     .map((row) => ({
-      mes: (row[1] || '').trim(),
-      formacionAbierta: parseSpanishNumber(row[2]),
-      formacionEmpresas: parseSpanishNumber(row[3]),
-      material: parseSpanishNumber(row[4]),
-      gepServices: parseSpanishNumber(row[5]),
-      pci: parseSpanishNumber(row[6]),
-      total: parseSpanishNumber(row[7]),
-    }));
+      mes: getField(row, ['Mes']),
+      formacionAbierta: parseSpanishNumber(getField(row, ['Formación abierta', 'Formacion abierta'])),
+      formacionEmpresas: parseSpanishNumber(getField(row, ['Formación empresas', 'Formacion empresas'])),
+      material: parseSpanishNumber(getField(row, ['Material'])),
+      gepServices: parseSpanishNumber(getField(row, ['Gep services', 'GEP services'])),
+      pci: parseSpanishNumber(getField(row, ['PCI'])),
+      total: parseSpanishNumber(getField(row, ['Total'])),
+    }))
+    .filter((row) => MESES.includes(row.mes.toLowerCase()));
 }
 
 async function fetchObjetivos(): Promise<ObjetivoMensual[]> {
