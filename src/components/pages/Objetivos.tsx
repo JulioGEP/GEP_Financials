@@ -167,30 +167,43 @@ export function Objetivos({ loading }: ObjetivosProps) {
         </div>
       </ChartCard>
 
-      <ChartCard title="Detalle por línea" subtitle="Exportado desde hoja Datos">
+      <ChartCard title="Objetivos 2026" subtitle="Totales mensuales y por línea de negocio">
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-gray-200">
-                {['Mes', 'Formación Abierta', 'Formación Empresas', 'Material', 'Gep Services', 'PCI', 'Total'].map((h) => (
-                  <th key={h} className="text-left text-[11px] uppercase tracking-wider font-semibold text-gray-400 pb-2 pr-4 whitespace-nowrap">{h}</th>
-                ))}
+                <th className="text-left text-[11px] uppercase tracking-wider font-semibold text-gray-400 pb-2 pr-4 whitespace-nowrap">Mes</th>
+                <th className="text-right text-[11px] uppercase tracking-wider font-semibold text-gray-400 pb-2 pl-4 whitespace-nowrap">Total</th>
               </tr>
             </thead>
             <tbody>
               {objetivos.map((row) => (
                 <tr key={row.mes} className="border-b border-gray-50 hover:bg-gray-50">
                   <td className="py-2 pr-4 font-medium text-gep-dark capitalize">{row.mes}</td>
-                  <td className="py-2 pr-4 whitespace-nowrap">{formatCurrency(row.formacionAbierta)}</td>
-                  <td className="py-2 pr-4 whitespace-nowrap">{formatCurrency(row.formacionEmpresas)}</td>
-                  <td className="py-2 pr-4 whitespace-nowrap">{formatCurrency(row.material)}</td>
-                  <td className="py-2 pr-4 whitespace-nowrap">{formatCurrency(row.gepServices)}</td>
-                  <td className="py-2 pr-4 whitespace-nowrap">{formatCurrency(row.pci)}</td>
-                  <td className="py-2 pr-4 whitespace-nowrap font-semibold text-gep-dark">{formatCurrency(row.total)}</td>
+                  <td className="py-2 pl-4 text-right whitespace-nowrap font-semibold text-gep-dark">{formatCurrency(row.total)}</td>
                 </tr>
               ))}
             </tbody>
           </table>
+        </div>
+
+        <div className="mt-6 pt-4 border-t border-gray-200">
+          <h4 className="text-[11px] uppercase tracking-wider font-semibold text-gray-400 mb-3">Totales anuales por línea de negocio</h4>
+          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
+            {[
+              { label: 'Formación Abierta', value: totals.formacionAbierta },
+              { label: 'Formación Empresas', value: totals.formacionEmpresas },
+              { label: 'Material', value: totals.material },
+              { label: 'Gep Services', value: totals.gepServices },
+              { label: 'PCI', value: totals.pci },
+              { label: 'Total', value: totals.total },
+            ].map((item) => (
+              <div key={item.label} className="rounded-lg bg-gray-50 px-3 py-2">
+                <p className="text-[11px] text-gray-500 truncate">{item.label}</p>
+                <p className="text-sm font-semibold text-gep-dark whitespace-nowrap">{formatCurrency(item.value)}</p>
+              </div>
+            ))}
+          </div>
         </div>
       </ChartCard>
     </div>
