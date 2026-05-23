@@ -1,4 +1,4 @@
-import { RefreshCw, Database, CloudOff } from 'lucide-react';
+import { RefreshCw, Database, CloudOff, Menu } from 'lucide-react';
 import { formatDateTime } from '../lib/parseData';
 import { PeriodFilter, PeriodInfo } from './ui/PeriodFilter';
 
@@ -9,6 +9,7 @@ interface HeaderProps {
   source?: 'api' | 'mock';
   onRefresh: () => void;
   isRefreshing: boolean;
+  onOpenMobileMenu: () => void;
 }
 
 export function Header({
@@ -18,16 +19,24 @@ export function Header({
   source,
   onRefresh,
   isRefreshing,
+  onOpenMobileMenu,
 }: HeaderProps) {
   return (
-    <header className="bg-white border-b border-gray-200 px-8 py-4 flex items-center justify-between gap-4">
+    <header className="bg-white border-b border-gray-200 px-4 sm:px-6 md:px-8 py-4 flex flex-col lg:flex-row lg:items-center justify-between gap-3 lg:gap-4">
       <div className="min-w-0">
+        <button
+          type="button"
+          onClick={onOpenMobileMenu}
+          className="btn-secondary lg:hidden mb-2"
+        >
+          <Menu className="w-4 h-4" /> Menú
+        </button>
         <h1 className="font-bold text-xl text-gep-dark truncate">{title}</h1>
         {subtitle && (
           <p className="text-sm font-light text-gray-500 truncate">{subtitle}</p>
         )}
       </div>
-      <div className="flex items-center gap-3 shrink-0">
+      <div className="flex flex-wrap items-center gap-2 sm:gap-3 shrink-0">
         <PeriodInfo />
         <PeriodFilter />
         {source && (
