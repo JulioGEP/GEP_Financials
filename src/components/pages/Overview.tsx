@@ -1,5 +1,4 @@
-import { useState } from 'react';
-import { useMemo } from 'react';
+import { useState, useMemo, type ReactNode } from 'react';
 import {
   Bar,
   BarChart,
@@ -25,6 +24,10 @@ import {
   Clock,
   CalendarCheck,
   Users,
+  ArrowUpRight,
+  ArrowDownRight,
+  Minus,
+  Zap,
 } from 'lucide-react';
 import type { FinancialData, Venta, Gasto } from '../../types/financial';
 import { KpiCard, KpiCardSkeleton } from '../ui/KpiCard';
@@ -751,6 +754,216 @@ function DpoModal({ gastos }: { gastos: Gasto[] }) {
   );
 }
 
+// ---------- Pulse Hero (executive at-a-glance summary) ----------
+
+interface PulseTileProps {
+  label: string;
+  value: string;
+  hint?: string;
+  delta?: { text: string; direction: 'up' | 'down' | 'neutral' } | null;
+  tone: 'positive' | 'negative' | 'neutral' | 'warning';
+  highlight?: boolean;
+  icon: ReactNode;
+  onClick?: () => void;
+}
+
+function PulseTile({ label, value, hint, delta, tone, highlight, icon, onClick }: PulseTileProps) {
+  const toneText: Record<PulseTileProps['tone'], string> = {
+    positive: 'text-green-300',
+    negative: 'text-red-300',
+    neutral: 'text-white',
+    warning: 'text-amber-300',
+  };
+  const toneDot: Record<PulseTileProps['tone'], string> = {
+    positive: 'bg-green-400',
+    negative: 'bg-red-400',
+    neutral: 'bg-gray-400',
+    warning: 'bg-amber-400',
+  };
+  return (
+    <div
+      role={onClick ? 'button' : undefined}
+      tabIndex={onClick ? 0 : undefined}
+      onClick={onClick}
+      onKeyDown={onClick ? (e) => { if (e.key === 'Enter' || e.key === ' ') onClick(); } : undefined}
+      className={`relative rounded-xl p-4 transition-all ${
+        highlight
+          ? 'bg-white/10 ring-1 ring-white/20'
+          : 'bg-white/5 ring-1 ring-white/10'
+      } ${onClick ? 'cursor-pointer hover:bg-white/15 hover:ring-white/30' : ''}`}
+    >
+      <div className="flex items-start justify-between gap-2 mb-2">
+        <div className="flex items-center gap-1.5">
+          <span className={`inline-block w-1.5 h-1.5 rounded-full ${toneDot[tone]}`} />
+          <span className="text-[10px] uppercase tracking-wider font-semibold text-white/60">
+            {label}
+          </span>
+        </div>
+        <div className="text-white/40">{icon}</div>
+      </div>
+      <div className={`font-bold leading-tight break-words ${highlight ? 'text-2xl' : 'text-xl'} ${toneText[tone]}`}>
+        {value}
+      </div>
+      {hint && (
+        <div className="mt-1 text-[11px] text-white/60 leading-snug">{hint}</div>
+      )}
+      {delta && (
+        <div className={`mt-1.5 inline-flex items-center gap-0.5 text-[11px] font-semibold ${
+          delta.direction === 'up' ? 'text-green-300'
+            : delta.direction === 'down' ? 'text-red-300'
+            : 'text-white/50'
+        }`}>
+          {delta.direction === 'up' && <ArrowUpRight className="w-3 h-3" />}
+          {delta.direction === 'down' && <ArrowDownRight className="w-3 h-3" />}
+          {delta.direction === 'neutral' && <Minus className="w-3 h-3" />}
+          <span>{delta.text}</span>
+        </div>
+      )}
+    </div>
+  );
+}
+
+interface PulseHeroProps {
+  label: string;
+  kpis: ReturnType<typeof computeOverviewKpis>;
+  prevKpis: ReturnType<typeof computeOverviewKpis>;
+  deltaIngresos: number;
+  deltaGastos: number;
+  deltaResultado: number;
+  alertsCount: number;
+  onOpen: (key: MetricKey) => void;
+}
+
+function PulseHero({
+  label,
+  kpis,
+  prevKpis,
+  deltaIngresos,
+  deltaGastos,
+  deltaResultado,
+  alertsCount,
+  onOpen,
+}: PulseHeroProps) {
+  const resultadoTone: PulseTileProps['tone'] = kpis.resultadoNeto >= 0 ? 'positive' : 'negative';
+  const cajaTone: PulseTileProps['tone'] = kpis.posicionCaja >= 0 ? 'positive' : 'negative';
+  const wcTone: PulseTileProps['tone'] = kpis.workingCapital >= 0 ? 'positive' : 'negative';
+  const vencidoTotal = kpis.pendienteCobrarVencido + kpis.pendientePagarVencido;
+  const vencidoTone: PulseTileProps['tone'] = vencidoTotal > 0 ? 'warning' : 'positive';
+
+  // Resultado vs Facturación → "score" sencillo (margen) para barra de salud
+  const margen = kpis.margenPct;
+  const healthScore = Math.max(0, Math.min(100, ((margen + 20) / 40) * 100)); // -20% → 0, +20% → 100
+  const healthLabel =
+    margen >= 15 ? 'Saludable'
+    : margen >= 5 ? 'Estable'
+    : margen >= 0 ? 'Ajustado'
+    : 'Crítico';
+  const healthColor =
+    margen >= 15 ? 'bg-green-400'
+    : margen >= 5 ? 'bg-emerald-400'
+    : margen >= 0 ? 'bg-amber-400'
+    : 'bg-red-400';
+
+  return (
+    <div className="rounded-2xl bg-gradient-to-br from-gep-dark via-gep-dark-light to-gep-dark text-white shadow-card overflow-hidden">
+      {/* Header */}
+      <div className="px-5 pt-5 pb-3 flex flex-wrap items-center justify-between gap-3 border-b border-white/10">
+        <div className="flex items-center gap-2.5">
+          <div className="w-9 h-9 rounded-lg bg-gep-red/20 ring-1 ring-gep-red/40 flex items-center justify-center">
+            <Zap className="w-4.5 h-4.5 text-gep-red-light" />
+          </div>
+          <div>
+            <h2 className="text-sm font-semibold tracking-tight text-white">Pulso Financiero</h2>
+            <p className="text-[11px] text-white/50">{label} · vista global del estado</p>
+          </div>
+        </div>
+        <div className="flex items-center gap-3">
+          <div className="text-right">
+            <div className="text-[10px] uppercase tracking-wider text-white/50">Salud</div>
+            <div className="text-sm font-bold">{healthLabel}</div>
+          </div>
+          <div className="w-28 h-2 rounded-full bg-white/10 overflow-hidden">
+            <div
+              className={`h-full ${healthColor} transition-all`}
+              style={{ width: `${healthScore}%` }}
+            />
+          </div>
+          {alertsCount > 0 && (
+            <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full bg-gep-red/20 ring-1 ring-gep-red/40 text-[11px] font-semibold text-red-200">
+              <AlertOctagon className="w-3 h-3" />
+              {alertsCount} alerta{alertsCount === 1 ? '' : 's'}
+            </span>
+          )}
+        </div>
+      </div>
+
+      {/* Tiles */}
+      <div className="p-4 grid grid-cols-2 lg:grid-cols-5 gap-3">
+        <PulseTile
+          label="Resultado Neto"
+          value={formatCurrency(kpis.resultadoNeto)}
+          hint={`Margen ${kpis.margenPct.toFixed(1)}% · sin IVA`}
+          delta={{ text: fmtDelta(deltaResultado), direction: deltaDirection(deltaResultado) }}
+          tone={resultadoTone}
+          highlight
+          icon={<Activity className="w-4 h-4" />}
+          onClick={() => onOpen('resultado')}
+        />
+        <PulseTile
+          label="Facturación"
+          value={formatCurrency(kpis.ingresosYTD)}
+          hint={`vs. ${formatCurrency(prevKpis.ingresosYTD)} año ant.`}
+          delta={{ text: fmtDelta(deltaIngresos), direction: deltaDirection(deltaIngresos) }}
+          tone="neutral"
+          icon={<TrendingUp className="w-4 h-4" />}
+          onClick={() => onOpen('facturacion')}
+        />
+        <PulseTile
+          label="Gastos"
+          value={formatCurrency(kpis.gastosYTD)}
+          hint={`vs. ${formatCurrency(prevKpis.gastosYTD)} año ant.`}
+          // En gastos, "subir" es peor → invertimos la dirección visual
+          delta={{
+            text: fmtDelta(deltaGastos),
+            direction:
+              deltaGastos > 0.5 ? 'down'
+              : deltaGastos < -0.5 ? 'up'
+              : 'neutral',
+          }}
+          tone="neutral"
+          icon={<TrendingDown className="w-4 h-4" />}
+          onClick={() => onOpen('gastos')}
+        />
+        <PulseTile
+          label="Posición de Caja"
+          value={formatCurrency(kpis.posicionCaja)}
+          hint="Cobrado − Pagado real"
+          tone={cajaTone}
+          highlight
+          icon={<Wallet className="w-4 h-4" />}
+          onClick={() => onOpen('caja')}
+        />
+        <PulseTile
+          label={vencidoTotal > 0 ? 'Vencido (Riesgo)' : 'Capital de Trabajo'}
+          value={
+            vencidoTotal > 0
+              ? formatCurrency(vencidoTotal)
+              : formatCurrency(kpis.workingCapital)
+          }
+          hint={
+            vencidoTotal > 0
+              ? `Cobrar ${formatCurrency(kpis.pendienteCobrarVencido)} · Pagar ${formatCurrency(kpis.pendientePagarVencido)}`
+              : 'Cobros − Pagos pendientes'
+          }
+          tone={vencidoTotal > 0 ? vencidoTone : wcTone}
+          icon={vencidoTotal > 0 ? <AlertTriangle className="w-4 h-4" /> : <Scale className="w-4 h-4" />}
+          onClick={() => onOpen(vencidoTotal > 0 ? 'cobrosVencidos' : 'working')}
+        />
+      </div>
+    </div>
+  );
+}
+
 // ---------- Main Overview component ----------
 
 export function Overview({ data, loading }: OverviewProps) {
@@ -875,68 +1088,20 @@ export function Overview({ data, loading }: OverviewProps) {
         </MetricModal>
       )}
 
-      {/* Row 1 - P&L Hero */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-        <KpiCard
-          title="Facturación"
-          value={formatCurrency(kpis.ingresosYTD)}
-          subtitle={`IVA incluido · ${label}`}
-          icon={<TrendingUp className="w-5 h-5" />}
-          color="green"
-          emphasis
-          trend={`Neto: ${formatCurrency(kpis.ingresosNetoYTD)}`}
-          trendDirection="neutral"
-          comparison={{
-            prevValue: formatCurrency(prevKpis.ingresosYTD),
-            delta: fmtDelta(deltaIngresos),
-            direction: deltaDirection(deltaIngresos),
-          }}
-          onClick={() => open('facturacion')}
-        />
-        <KpiCard
-          title="Gastos"
-          value={formatCurrency(kpis.gastosYTD)}
-          subtitle={`IVA incluido · ${label}`}
-          icon={<TrendingDown className="w-5 h-5" />}
-          color="red"
-          trend={`Neto: ${formatCurrency(kpis.gastosNetoYTD)}`}
-          trendDirection="neutral"
-          comparison={{
-            prevValue: formatCurrency(prevKpis.gastosYTD),
-            delta: fmtDelta(deltaGastos),
-            direction: deltaDirection(deltaGastos),
-          }}
-          onClick={() => open('gastos')}
-        />
-        <KpiCard
-          title="Resultado Neto"
-          value={formatCurrency(kpis.resultadoNeto)}
-          subtitle={`Margen: ${kpis.margenPct.toFixed(1)}%`}
-          icon={<Activity className="w-5 h-5" />}
-          color={kpis.resultadoNeto >= 0 ? 'green' : 'red'}
-          emphasis
-          trend={`${kpis.margenPct.toFixed(1)}% margen operativo`}
-          trendDirection={kpis.resultadoNeto >= 0 ? 'up' : 'down'}
-          comparison={{
-            prevValue: formatCurrency(prevKpis.resultadoNeto),
-            delta: fmtDelta(deltaResultado),
-            direction: deltaDirection(deltaResultado),
-          }}
-          onClick={() => open('resultado')}
-        />
-      </div>
+      {/* Row 1 - Pulso Financiero (vista global) */}
+      <PulseHero
+        label={label}
+        kpis={kpis}
+        prevKpis={prevKpis}
+        deltaIngresos={deltaIngresos}
+        deltaGastos={deltaGastos}
+        deltaResultado={deltaResultado}
+        alertsCount={alerts.length}
+        onOpen={open}
+      />
 
-      {/* Row 2 - Tesorería */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-4">
-        <KpiCard
-          title="Posición de Caja"
-          value={formatCurrency(kpis.posicionCaja)}
-          subtitle="Cobrado - Pagado real"
-          icon={<Wallet className="w-5 h-5" />}
-          color={kpis.posicionCaja >= 0 ? 'blue' : 'red'}
-          emphasis
-          onClick={() => open('caja')}
-        />
+      {/* Row 2 - Detalle Pendientes & Capital */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         <KpiCard
           title="Capital de Trabajo"
           value={formatCurrency(kpis.workingCapital)}
