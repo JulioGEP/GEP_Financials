@@ -28,6 +28,7 @@ import {
   ArrowDownRight,
   Minus,
   Zap,
+  Banknote,
 } from 'lucide-react';
 import type { FinancialData, Venta, Gasto } from '../../types/financial';
 import { KpiCard, KpiCardSkeleton } from '../ui/KpiCard';
@@ -827,6 +828,7 @@ interface PulseHeroProps {
   label: string;
   kpis: ReturnType<typeof computeOverviewKpis>;
   prevKpis: ReturnType<typeof computeOverviewKpis>;
+  deltaVentas: number;
   deltaIngresos: number;
   deltaGastos: number;
   deltaResultado: number;
@@ -838,6 +840,7 @@ function PulseHero({
   label,
   kpis,
   prevKpis,
+  deltaVentas,
   deltaIngresos,
   deltaGastos,
   deltaResultado,
@@ -845,10 +848,6 @@ function PulseHero({
   onOpen,
 }: PulseHeroProps) {
   const resultadoTone: PulseTileProps['tone'] = kpis.resultadoNeto >= 0 ? 'positive' : 'negative';
-  const cajaTone: PulseTileProps['tone'] = kpis.posicionCaja >= 0 ? 'positive' : 'negative';
-  const wcTone: PulseTileProps['tone'] = kpis.workingCapital >= 0 ? 'positive' : 'negative';
-  const vencidoTotal = kpis.pendienteCobrarVencido + kpis.pendientePagarVencido;
-  const vencidoTone: PulseTileProps['tone'] = vencidoTotal > 0 ? 'warning' : 'positive';
 
   // Resultado vs Facturación → "score" sencillo (margen) para barra de salud
   const margen = kpis.margenPct;
@@ -897,12 +896,42 @@ function PulseHero({
         </div>
       </div>
 
-      {/* Tiles */}
-      <div className="p-4 grid grid-cols-2 lg:grid-cols-5 gap-3">
+      {/* Tiles — Fila 1: Ingresos */}
+      <div className="px-4 pt-4 grid grid-cols-1 sm:grid-cols-3 gap-3">
+        <PulseTile
+          label="Total Ventas"
+          value={formatCurrency(kpis.ingresosYTD)}
+          hint={`Total con IVA · vs. ${formatCurrency(prevKpis.ingresosYTD)} año ant.`}
+          delta={{ text: fmtDelta(deltaIngresos), direction: deltaDirection(deltaIngresos) }}
+          tone="neutral"
+          icon={<TrendingUp className="w-4 h-4" />}
+          onClick={() => onOpen('facturacion')}
+        />
+        <PulseTile
+          label="Total Facturación"
+          value={formatCurrency(kpis.ingresosNetoYTD)}
+          hint={`Base imponible · sin IVA · vs. ${formatCurrency(prevKpis.ingresosNetoYTD)} año ant.`}
+          delta={{ text: fmtDelta(deltaVentas), direction: deltaDirection(deltaVentas) }}
+          tone="neutral"
+          icon={<ReceiptText className="w-4 h-4" />}
+          onClick={() => onOpen('facturacion')}
+        />
+        <PulseTile
+          label="Total Ingresado"
+          value={formatCurrency(kpis.cobradoYTD)}
+          hint={`Cobrado · ${kpis.ingresosYTD > 0 ? ((kpis.cobradoYTD / kpis.ingresosYTD) * 100).toFixed(0) : 0}% de la facturación`}
+          tone={kpis.cobradoYTD >= kpis.ingresosYTD * 0.8 ? 'positive' : 'warning'}
+          icon={<Wallet className="w-4 h-4" />}
+          onClick={() => onOpen('caja')}
+        />
+      </div>
+
+      {/* Tiles — Fila 2: Gastos */}
+      <div className="px-4 pb-4 pt-3 grid grid-cols-1 sm:grid-cols-3 gap-3">
         <PulseTile
           label="Resultado Neto"
           value={formatCurrency(kpis.resultadoNeto)}
-          hint={`Margen ${kpis.margenPct.toFixed(1)}% · sin IVA`}
+          hint={`Facturación s/IVA − Gastos s/IVA · margen ${kpis.margenPct.toFixed(1)}%`}
           delta={{ text: fmtDelta(deltaResultado), direction: deltaDirection(deltaResultado) }}
           tone={resultadoTone}
           highlight
@@ -910,19 +939,9 @@ function PulseHero({
           onClick={() => onOpen('resultado')}
         />
         <PulseTile
-          label="Facturación"
-          value={formatCurrency(kpis.ingresosYTD)}
-          hint={`vs. ${formatCurrency(prevKpis.ingresosYTD)} año ant.`}
-          delta={{ text: fmtDelta(deltaIngresos), direction: deltaDirection(deltaIngresos) }}
-          tone="neutral"
-          icon={<TrendingUp className="w-4 h-4" />}
-          onClick={() => onOpen('facturacion')}
-        />
-        <PulseTile
-          label="Gastos"
+          label="Total Gastos"
           value={formatCurrency(kpis.gastosYTD)}
-          hint={`vs. ${formatCurrency(prevKpis.gastosYTD)} año ant.`}
-          // En gastos, "subir" es peor → invertimos la dirección visual
+          hint={`Facturas recibidas · fecha emisión · vs. ${formatCurrency(prevKpis.gastosYTD)} año ant.`}
           delta={{
             text: fmtDelta(deltaGastos),
             direction:
@@ -935,29 +954,12 @@ function PulseHero({
           onClick={() => onOpen('gastos')}
         />
         <PulseTile
-          label="Posición de Caja"
-          value={formatCurrency(kpis.posicionCaja)}
-          hint="Cobrado − Pagado real"
-          tone={cajaTone}
-          highlight
-          icon={<Wallet className="w-4 h-4" />}
+          label="Total Pagado"
+          value={formatCurrency(kpis.pagadoYTD)}
+          hint={`Pagos realizados · ${kpis.gastosYTD > 0 ? ((kpis.pagadoYTD / kpis.gastosYTD) * 100).toFixed(0) : 0}% de los gastos`}
+          tone={kpis.pagadoYTD >= kpis.gastosYTD * 0.8 ? 'positive' : 'warning'}
+          icon={<Banknote className="w-4 h-4" />}
           onClick={() => onOpen('caja')}
-        />
-        <PulseTile
-          label={vencidoTotal > 0 ? 'Vencido (Riesgo)' : 'Capital de Trabajo'}
-          value={
-            vencidoTotal > 0
-              ? formatCurrency(vencidoTotal)
-              : formatCurrency(kpis.workingCapital)
-          }
-          hint={
-            vencidoTotal > 0
-              ? `Cobrar ${formatCurrency(kpis.pendienteCobrarVencido)} · Pagar ${formatCurrency(kpis.pendientePagarVencido)}`
-              : 'Cobros − Pagos pendientes'
-          }
-          tone={vencidoTotal > 0 ? vencidoTone : wcTone}
-          icon={vencidoTotal > 0 ? <AlertTriangle className="w-4 h-4" /> : <Scale className="w-4 h-4" />}
-          onClick={() => onOpen(vencidoTotal > 0 ? 'cobrosVencidos' : 'working')}
         />
       </div>
     </div>
@@ -999,6 +1001,7 @@ export function Overview({ data, loading }: OverviewProps) {
   const gastosPeriod = filterByDateRange(allActiveGastos, dateRange, 'fechaEmision');
 
   // Deltas
+  const deltaVentas = pctDelta(kpis.ingresosNetoYTD, prevKpis.ingresosNetoYTD);
   const deltaIngresos = pctDelta(kpis.ingresosYTD, prevKpis.ingresosYTD);
   const deltaGastos = pctDelta(kpis.gastosYTD, prevKpis.gastosYTD);
   const deltaResultado = pctDelta(kpis.resultadoNeto, prevKpis.resultadoNeto);
@@ -1093,6 +1096,7 @@ export function Overview({ data, loading }: OverviewProps) {
         label={label}
         kpis={kpis}
         prevKpis={prevKpis}
+        deltaVentas={deltaVentas}
         deltaIngresos={deltaIngresos}
         deltaGastos={deltaGastos}
         deltaResultado={deltaResultado}
