@@ -86,6 +86,8 @@ export interface OverviewKpis {
   ivaRepercutido: number;
   ivaSoportado: number;
   saldoIVA: number;
+  cobradoYTD: number;
+  pagadoYTD: number;
 }
 
 export function filterByDateRange<T extends { fecha?: Date | null; fechaEmision?: Date | null }>(
@@ -226,6 +228,10 @@ export function computeOverviewKpis(data: FinancialData, dateRange?: DateRange, 
   const ivaSoportado = sum(gastosYTD, (g) => g.iva);
   const saldoIVA = ivaRepercutido - ivaSoportado;
 
+  // Cobrado/pagado within the period's invoices
+  const cobradoYTD = sum(ventasYTD, (v) => v.cobrado);
+  const pagadoYTD = sum(gastosYTD, (g) => g.pagado);
+
   return {
     ingresosYTD,
     gastosYTD: gastosTotalYTD,
@@ -256,6 +262,8 @@ export function computeOverviewKpis(data: FinancialData, dateRange?: DateRange, 
     ivaRepercutido,
     ivaSoportado,
     saldoIVA,
+    cobradoYTD,
+    pagadoYTD,
   };
 }
 
