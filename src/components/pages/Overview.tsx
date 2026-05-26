@@ -900,18 +900,18 @@ function PulseHero({
       <div className="px-4 pt-4 grid grid-cols-1 sm:grid-cols-3 gap-3">
         <PulseTile
           label="Total Ventas"
-          value={formatCurrency(kpis.ingresosNetoYTD)}
-          hint={`Base imponible · sin IVA · vs. ${formatCurrency(prevKpis.ingresosNetoYTD)} año ant.`}
-          delta={{ text: fmtDelta(deltaVentas), direction: deltaDirection(deltaVentas) }}
+          value={formatCurrency(kpis.ingresosYTD)}
+          hint={`Total con IVA · vs. ${formatCurrency(prevKpis.ingresosYTD)} año ant.`}
+          delta={{ text: fmtDelta(deltaIngresos), direction: deltaDirection(deltaIngresos) }}
           tone="neutral"
           icon={<TrendingUp className="w-4 h-4" />}
           onClick={() => onOpen('facturacion')}
         />
         <PulseTile
           label="Total Facturación"
-          value={formatCurrency(kpis.ingresosYTD)}
-          hint={`Con IVA · vs. ${formatCurrency(prevKpis.ingresosYTD)} año ant.`}
-          delta={{ text: fmtDelta(deltaIngresos), direction: deltaDirection(deltaIngresos) }}
+          value={formatCurrency(kpis.ingresosNetoYTD)}
+          hint={`Base imponible · sin IVA · vs. ${formatCurrency(prevKpis.ingresosNetoYTD)} año ant.`}
+          delta={{ text: fmtDelta(deltaVentas), direction: deltaDirection(deltaVentas) }}
           tone="neutral"
           icon={<ReceiptText className="w-4 h-4" />}
           onClick={() => onOpen('facturacion')}
@@ -931,7 +931,7 @@ function PulseHero({
         <PulseTile
           label="Resultado Neto"
           value={formatCurrency(kpis.resultadoNeto)}
-          hint={`Margen ${kpis.margenPct.toFixed(1)}% · sin IVA`}
+          hint={`Facturación s/IVA − Gastos s/IVA · margen ${kpis.margenPct.toFixed(1)}%`}
           delta={{ text: fmtDelta(deltaResultado), direction: deltaDirection(deltaResultado) }}
           tone={resultadoTone}
           highlight
