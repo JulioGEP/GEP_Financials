@@ -41,7 +41,7 @@ export function Sidebar({ isMobileMenuOpen, onCloseMobileMenu }: SidebarProps) {
         />
       )}
       <aside
-        className={`fixed inset-y-0 left-0 z-40 w-64 shrink-0 bg-gep-dark text-white flex flex-col min-h-screen transform transition-transform duration-200 lg:static lg:translate-x-0 ${
+        className={`fixed inset-y-0 left-0 z-40 w-64 shrink-0 bg-gep-dark text-white flex flex-col min-h-screen transform transition-transform duration-200 lg:sticky lg:top-0 lg:h-screen lg:min-h-screen lg:translate-x-0 ${
           isMobileMenuOpen ? 'translate-x-0' : '-translate-x-full'
         }`}
       >
