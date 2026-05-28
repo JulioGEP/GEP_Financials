@@ -139,13 +139,11 @@ export function computeOverviewKpis(data: FinancialData, dateRange?: DateRange, 
     ? activeGastos.filter(g => g.fechaEmision && g.fechaEmision >= dateRange.start && g.fechaEmision <= dateRange.end)
     : ytdFilter(activeGastos, now);
 
-  // P&L with IVA (total)
-  const ingresosYTD = sum(ventasYTD, (v) => v.total);
-  const gastosTotalYTD = sum(gastosYTD, (g) => g.total);
-
-  // P&L without IVA (subtotal)
-  const ingresosNetoYTD = sum(ventasYTD, (v) => v.subtotal);
-  const gastosNetoYTD = sum(gastosYTD, (g) => g.subtotal);
+  // P&L sin IVA (base imponible)
+  const ingresosYTD = sum(ventasYTD, (v) => v.subtotal);
+  const gastosTotalYTD = sum(gastosYTD, (g) => g.subtotal);
+  const ingresosNetoYTD = ingresosYTD;
+  const gastosNetoYTD = gastosTotalYTD;
 
   // Resultado neto is pre-VAT
   const resultadoNeto = ingresosNetoYTD - gastosNetoYTD;
@@ -162,26 +160,26 @@ export function computeOverviewKpis(data: FinancialData, dateRange?: DateRange, 
   const posicionCaja = saldoDisponible !== null ? saldoDisponible : totalCobrado - totalPagado;
 
   // Pending (all active, not just YTD)
-  const pendienteCobrar = sum(activeVentas, (v) => v.pendiente);
-  const pendientePagar = sum(activeGastos, (g) => g.pendiente);
+  const pendienteCobrar = sum(activeVentas, (v) => v.total > 0 ? v.pendiente * v.subtotal / v.total : v.pendiente);
+  const pendientePagar = sum(activeGastos, (g) => g.total > 0 ? g.pendiente * g.subtotal / g.total : g.pendiente);
 
   // Split pending payables: proveedores vs personal
   const gastosPersonal = activeGastos.filter(isGastoPersonal);
   const gastosProveedores = activeGastos.filter(g => !isGastoPersonal(g));
-  const pendientePersonal = sum(gastosPersonal, (g) => g.pendiente);
-  const pendienteProveedores = sum(gastosProveedores, (g) => g.pendiente);
+  const pendientePersonal = sum(gastosPersonal, (g) => g.total > 0 ? g.pendiente * g.subtotal / g.total : g.pendiente);
+  const pendienteProveedores = sum(gastosProveedores, (g) => g.total > 0 ? g.pendiente * g.subtotal / g.total : g.pendiente);
 
   // Overdue receivables
   const pendienteCobrarVencido = sum(
     activeVentas.filter(v => v.estado === 'Vencido'),
-    (v) => v.pendiente
+    (v) => v.total > 0 ? v.pendiente * v.subtotal / v.total : v.pendiente
   );
 
   // Overdue payables: estado === 'Vencido' OR (pendiente > 0 && vencimiento < today)
   const overdueGastos = activeGastos.filter(
     g => g.estado === 'Vencido' || (g.pendiente > 0 && g.vencimiento && g.vencimiento.getTime() < today.getTime())
   );
-  const pendientePagarVencido = sum(overdueGastos, (g) => g.pendiente);
+  const pendientePagarVencido = sum(overdueGastos, (g) => g.total > 0 ? g.pendiente * g.subtotal / g.total : g.pendiente);
 
   const overdueProveedores = gastosProveedores.filter(
     g => g.estado === 'Vencido' || (g.pendiente > 0 && g.vencimiento && g.vencimiento.getTime() < today.getTime())
@@ -189,8 +187,8 @@ export function computeOverviewKpis(data: FinancialData, dateRange?: DateRange, 
   const overduePersonal = gastosPersonal.filter(
     g => g.estado === 'Vencido' || (g.pendiente > 0 && g.vencimiento && g.vencimiento.getTime() < today.getTime())
   );
-  const pendienteProveedoresVencido = sum(overdueProveedores, (g) => g.pendiente);
-  const pendientePersonalVencido = sum(overduePersonal, (g) => g.pendiente);
+  const pendienteProveedoresVencido = sum(overdueProveedores, (g) => g.total > 0 ? g.pendiente * g.subtotal / g.total : g.pendiente);
+  const pendientePersonalVencido = sum(overduePersonal, (g) => g.total > 0 ? g.pendiente * g.subtotal / g.total : g.pendiente);
 
   const workingCapital = pendienteCobrar - pendientePagar;
 
@@ -203,11 +201,13 @@ export function computeOverviewKpis(data: FinancialData, dateRange?: DateRange, 
     (g) => g.pendiente > 0 && g.vencimiento && g.vencimiento.getTime() < today.getTime()
   ).length;
 
-  // Tasa cobro / pago
-  const totalActiveFacturado = sum(activeVentas, (v) => v.total);
-  const totalActiveGastos = sum(activeGastos, (g) => g.total);
-  const tasaCobro = totalActiveFacturado > 0 ? (totalCobrado / totalActiveFacturado) * 100 : 0;
-  const tasaPago = totalActiveGastos > 0 ? (totalPagado / totalActiveGastos) * 100 : 0;
+  // Tasa cobro / pago (base sin IVA en numerador y denominador)
+  const totalActiveFacturado = sum(activeVentas, (v) => v.subtotal);
+  const totalActiveGastos = sum(activeGastos, (g) => g.subtotal);
+  const cobradoSinIVA = sum(activeVentas, (v) => v.total > 0 ? v.cobrado * v.subtotal / v.total : v.cobrado);
+  const pagadoSinIVA = sum(activeGastos, (g) => g.total > 0 ? g.pagado * g.subtotal / g.total : g.pagado);
+  const tasaCobro = totalActiveFacturado > 0 ? (cobradoSinIVA / totalActiveFacturado) * 100 : 0;
+  const tasaPago = totalActiveGastos > 0 ? (pagadoSinIVA / totalActiveGastos) * 100 : 0;
 
   // DSO: avg days from fecha to fechaCobro (active ventas)
   const cobradas = activeVentas.filter((v) => v.fecha && v.fechaCobro);
@@ -228,9 +228,9 @@ export function computeOverviewKpis(data: FinancialData, dateRange?: DateRange, 
   const ivaSoportado = sum(gastosYTD, (g) => g.iva);
   const saldoIVA = ivaRepercutido - ivaSoportado;
 
-  // Cobrado/pagado within the period's invoices
-  const cobradoYTD = sum(ventasYTD, (v) => v.cobrado);
-  const pagadoYTD = sum(gastosYTD, (g) => g.pagado);
+  // Cobrado/pagado sin IVA dentro del período
+  const cobradoYTD = sum(ventasYTD, (v) => v.total > 0 ? v.cobrado * v.subtotal / v.total : v.cobrado);
+  const pagadoYTD = sum(gastosYTD, (g) => g.total > 0 ? g.pagado * g.subtotal / g.total : g.pagado);
 
   return {
     ingresosYTD,
@@ -301,12 +301,12 @@ export function monthlyRevenueVsExpenses(
   for (const v of data.ventas) {
     if (!v.fecha || v.estado === 'Anulado') continue;
     const key = `${v.fecha.getFullYear()}-${String(v.fecha.getMonth() + 1).padStart(2, '0')}`;
-    if (buckets[key]) buckets[key].ingresos += v.total;
+    if (buckets[key]) buckets[key].ingresos += v.subtotal;
   }
   for (const g of data.gastos) {
     if (!g.fechaEmision || g.estado === 'Anulado') continue;
     const key = `${g.fechaEmision.getFullYear()}-${String(g.fechaEmision.getMonth() + 1).padStart(2, '0')}`;
-    if (buckets[key]) buckets[key].gastos += g.total;
+    if (buckets[key]) buckets[key].gastos += g.subtotal;
   }
   const arr = Object.values(buckets);
   arr.forEach((p) => (p.neto = p.ingresos - p.gastos));
@@ -412,11 +412,12 @@ export function monthlyVentasStacked(
     if (!v.fecha || v.estado === 'Anulado') continue;
     const key = `${v.fecha.getFullYear()}-${String(v.fecha.getMonth() + 1).padStart(2, '0')}`;
     if (!buckets[key]) continue;
-    buckets[key].cobrado += v.cobrado;
+    const ratio = v.total > 0 ? v.subtotal / v.total : 1;
+    buckets[key].cobrado += v.cobrado * ratio;
     if (v.estado === 'Vencido') {
-      buckets[key].vencido += v.pendiente;
+      buckets[key].vencido += v.pendiente * ratio;
     } else {
-      buckets[key].pendiente += v.pendiente;
+      buckets[key].pendiente += v.pendiente * ratio;
     }
   }
   return Object.values(buckets);
@@ -448,7 +449,7 @@ export function estadoDistributionVentas(ventas: Venta[]): EstadoSummary[] {
       count: 0,
       color: ESTADO_COLORS[k] || '#6b7280',
     };
-    existing.value += v.total;
+    existing.value += v.subtotal;
     existing.count += 1;
     map.set(k, existing);
   }
@@ -465,7 +466,7 @@ export function estadoDistributionGastos(gastos: Gasto[]): EstadoSummary[] {
       count: 0,
       color: ESTADO_COLORS[k] || '#6b7280',
     };
-    existing.value += g.total;
+    existing.value += g.subtotal;
     existing.count += 1;
     map.set(k, existing);
   }
@@ -483,14 +484,14 @@ export function topClientes(ventas: Venta[], top = 8): TopGroup[] {
   for (const v of ventas) {
     const k = v.cliente || 'Sin asignar';
     const existing = map.get(k) || { name: k, value: 0, count: 0 };
-    existing.value += v.total;
+    existing.value += v.subtotal;
     existing.count += 1;
     map.set(k, existing);
   }
   return Array.from(map.values()).sort((a, b) => b.value - a.value).slice(0, top);
 }
 
-export function topProyectos<T extends { proyecto: string; total: number }>(
+export function topProyectos<T extends { proyecto: string; subtotal: number }>(
   items: T[],
   top = 8
 ): TopGroup[] {
@@ -498,7 +499,7 @@ export function topProyectos<T extends { proyecto: string; total: number }>(
   for (const it of items) {
     const k = it.proyecto || 'Sin proyecto';
     const existing = map.get(k) || { name: k, value: 0, count: 0 };
-    existing.value += it.total;
+    existing.value += it.subtotal;
     existing.count += 1;
     map.set(k, existing);
   }
@@ -510,7 +511,7 @@ export function topProveedores(gastos: Gasto[], top = 8): TopGroup[] {
   for (const g of gastos) {
     const k = g.proveedor || 'Sin asignar';
     const existing = map.get(k) || { name: k, value: 0, count: 0 };
-    existing.value += g.total;
+    existing.value += g.subtotal;
     existing.count += 1;
     map.set(k, existing);
   }
@@ -522,7 +523,7 @@ export function topCuentasGastos(gastos: Gasto[], top = 8): TopGroup[] {
   for (const g of gastos) {
     const k = g.cuenta || 'Sin clasificar';
     const existing = map.get(k) || { name: k, value: 0, count: 0 };
-    existing.value += g.total;
+    existing.value += g.subtotal;
     existing.count += 1;
     map.set(k, existing);
   }

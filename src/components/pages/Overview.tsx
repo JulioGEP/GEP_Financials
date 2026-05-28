@@ -829,7 +829,6 @@ interface PulseHeroProps {
   kpis: ReturnType<typeof computeOverviewKpis>;
   prevKpis: ReturnType<typeof computeOverviewKpis>;
   deltaVentas: number;
-  deltaIngresos: number;
   deltaGastos: number;
   deltaResultado: number;
   alertsCount: number;
@@ -841,7 +840,6 @@ function PulseHero({
   kpis,
   prevKpis,
   deltaVentas,
-  deltaIngresos,
   deltaGastos,
   deltaResultado,
   alertsCount,
@@ -897,20 +895,11 @@ function PulseHero({
       </div>
 
       {/* Tiles — Fila 1: Ingresos */}
-      <div className="px-4 pt-4 grid grid-cols-1 sm:grid-cols-3 gap-3">
-        <PulseTile
-          label="Total Ventas"
-          value={formatCurrency(kpis.ingresosYTD)}
-          hint={`Total con IVA · vs. ${formatCurrency(prevKpis.ingresosYTD)} año ant.`}
-          delta={{ text: fmtDelta(deltaIngresos), direction: deltaDirection(deltaIngresos) }}
-          tone="neutral"
-          icon={<TrendingUp className="w-4 h-4" />}
-          onClick={() => onOpen('facturacion')}
-        />
+      <div className="px-4 pt-4 grid grid-cols-1 sm:grid-cols-2 gap-3">
         <PulseTile
           label="Total Facturación"
-          value={formatCurrency(kpis.ingresosNetoYTD)}
-          hint={`Base imponible · sin IVA · vs. ${formatCurrency(prevKpis.ingresosNetoYTD)} año ant.`}
+          value={formatCurrency(kpis.ingresosYTD)}
+          hint={`Base imponible · sin IVA · vs. ${formatCurrency(prevKpis.ingresosYTD)} año ant.`}
           delta={{ text: fmtDelta(deltaVentas), direction: deltaDirection(deltaVentas) }}
           tone="neutral"
           icon={<ReceiptText className="w-4 h-4" />}
@@ -919,7 +908,7 @@ function PulseHero({
         <PulseTile
           label="Total Ingresado"
           value={formatCurrency(kpis.cobradoYTD)}
-          hint={`Cobrado · ${kpis.ingresosYTD > 0 ? ((kpis.cobradoYTD / kpis.ingresosYTD) * 100).toFixed(0) : 0}% de la facturación`}
+          hint={`Cobrado s/IVA · ${kpis.ingresosYTD > 0 ? ((kpis.cobradoYTD / kpis.ingresosYTD) * 100).toFixed(0) : 0}% de la facturación`}
           tone={kpis.cobradoYTD >= kpis.ingresosYTD * 0.8 ? 'positive' : 'warning'}
           icon={<Wallet className="w-4 h-4" />}
           onClick={() => onOpen('caja')}
@@ -941,7 +930,7 @@ function PulseHero({
         <PulseTile
           label="Total Gastos"
           value={formatCurrency(kpis.gastosYTD)}
-          hint={`Facturas recibidas · fecha emisión · vs. ${formatCurrency(prevKpis.gastosYTD)} año ant.`}
+          hint={`Base imponible · sin IVA · vs. ${formatCurrency(prevKpis.gastosYTD)} año ant.`}
           delta={{
             text: fmtDelta(deltaGastos),
             direction:
@@ -956,7 +945,7 @@ function PulseHero({
         <PulseTile
           label="Total Pagado"
           value={formatCurrency(kpis.pagadoYTD)}
-          hint={`Pagos realizados · ${kpis.gastosYTD > 0 ? ((kpis.pagadoYTD / kpis.gastosYTD) * 100).toFixed(0) : 0}% de los gastos`}
+          hint={`Pagado s/IVA · ${kpis.gastosYTD > 0 ? ((kpis.pagadoYTD / kpis.gastosYTD) * 100).toFixed(0) : 0}% de los gastos`}
           tone={kpis.pagadoYTD >= kpis.gastosYTD * 0.8 ? 'positive' : 'warning'}
           icon={<Banknote className="w-4 h-4" />}
           onClick={() => onOpen('caja')}
@@ -1001,8 +990,7 @@ export function Overview({ data, loading }: OverviewProps) {
   const gastosPeriod = filterByDateRange(allActiveGastos, dateRange, 'fechaEmision');
 
   // Deltas
-  const deltaVentas = pctDelta(kpis.ingresosNetoYTD, prevKpis.ingresosNetoYTD);
-  const deltaIngresos = pctDelta(kpis.ingresosYTD, prevKpis.ingresosYTD);
+  const deltaVentas = pctDelta(kpis.ingresosYTD, prevKpis.ingresosYTD);
   const deltaGastos = pctDelta(kpis.gastosYTD, prevKpis.gastosYTD);
   const deltaResultado = pctDelta(kpis.resultadoNeto, prevKpis.resultadoNeto);
   const deltaIvaRep = pctDelta(kpis.ivaRepercutido, prevKpis.ivaRepercutido);
@@ -1097,7 +1085,6 @@ export function Overview({ data, loading }: OverviewProps) {
         kpis={kpis}
         prevKpis={prevKpis}
         deltaVentas={deltaVentas}
-        deltaIngresos={deltaIngresos}
         deltaGastos={deltaGastos}
         deltaResultado={deltaResultado}
         alertsCount={alerts.length}

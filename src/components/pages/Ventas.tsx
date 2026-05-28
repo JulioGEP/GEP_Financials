@@ -86,23 +86,23 @@ export function Ventas({ data, loading }: VentasProps) {
   const filtered = applyVentaFilters(filterByDateRange(activas, dateRange, 'fecha'), filters);
   const prevFiltered = applyVentaFilters(filterByDateRange(activas, prevDateRange, 'fecha'), filters);
 
-  // Row 1 metrics (period-filtered)
-  const totalFacturado = sum(filtered, (v) => v.total);
-  const prevTotalFacturado = sum(prevFiltered, (v) => v.total);
-  const totalActivoSinIVA = sum(filtered, (v) => v.subtotal);
-  const totalCobrado = sum(filtered, (v) => v.cobrado);
+  // Row 1 metrics sin IVA (base imponible)
+  const totalFacturado = sum(filtered, (v) => v.subtotal);
+  const prevTotalFacturado = sum(prevFiltered, (v) => v.subtotal);
+  const totalCobrado = sum(filtered, (v) => v.total > 0 ? v.cobrado * v.subtotal / v.total : v.cobrado);
+  const totalIVARepercutido = sum(filtered, (v) => v.iva);
   const tasaCobro = totalFacturado > 0 ? (totalCobrado / totalFacturado) * 100 : 0;
 
-  // Row 2 metrics (always-current — pending state)
-  const totalPendiente = sum(activas, (v) => v.pendiente);
+  // Row 2 metrics sin IVA (always-current — pending state)
+  const totalPendiente = sum(activas, (v) => v.total > 0 ? v.pendiente * v.subtotal / v.total : v.pendiente);
   const vencidasVentas = activas.filter((v) => v.estado === 'Vencido');
-  const pendienteVencido = sum(vencidasVentas, (v) => v.pendiente);
+  const pendienteVencido = sum(vencidasVentas, (v) => v.total > 0 ? v.pendiente * v.subtotal / v.total : v.pendiente);
   const countVencido = vencidasVentas.length;
   const noVencidasVentas = activas.filter((v) => v.estado === 'Pendiente');
-  const pendienteNoVencido = sum(noVencidasVentas, (v) => v.pendiente);
+  const pendienteNoVencido = sum(noVencidasVentas, (v) => v.total > 0 ? v.pendiente * v.subtotal / v.total : v.pendiente);
   const countNoVencido = noVencidasVentas.length;
   const anuladasVentas = data.ventas.filter((v) => v.estado === 'Anulado');
-  const totalAnulado = sum(anuladasVentas, (v) => v.total);
+  const totalAnulado = sum(anuladasVentas, (v) => v.subtotal);
   const countAnulado = anuladasVentas.length;
 
   // DSO from kpis (all-time)
@@ -128,24 +128,24 @@ export function Ventas({ data, loading }: VentasProps) {
     { key: 'proyecto', header: 'Proyecto', accessor: (r) => r.proyecto },
     {
       key: 'total',
-      header: 'Total',
-      accessor: (r) => r.total,
+      header: 'Total s/IVA',
+      accessor: (r) => r.subtotal,
       align: 'right',
-      render: (r) => formatCurrency(r.total),
+      render: (r) => formatCurrency(r.subtotal),
     },
     {
       key: 'cobrado',
-      header: 'Cobrado',
-      accessor: (r) => r.cobrado,
+      header: 'Cobrado s/IVA',
+      accessor: (r) => r.total > 0 ? r.cobrado * r.subtotal / r.total : r.cobrado,
       align: 'right',
-      render: (r) => formatCurrency(r.cobrado),
+      render: (r) => formatCurrency(r.total > 0 ? r.cobrado * r.subtotal / r.total : r.cobrado),
     },
     {
       key: 'pendiente',
-      header: 'Pendiente',
-      accessor: (r) => r.pendiente,
+      header: 'Pendiente s/IVA',
+      accessor: (r) => r.total > 0 ? r.pendiente * r.subtotal / r.total : r.pendiente,
       align: 'right',
-      render: (r) => formatCurrency(r.pendiente),
+      render: (r) => formatCurrency(r.total > 0 ? r.pendiente * r.subtotal / r.total : r.pendiente),
     },
     {
       key: 'estado',
@@ -178,7 +178,7 @@ export function Ventas({ data, loading }: VentasProps) {
           title="Total Facturado"
           onClick={() => setOpenModal('principal')}
           value={formatCurrency(totalFacturado)}
-          subtitle={label}
+          subtitle={`Sin IVA · ${label}`}
           icon={<TrendingUp className="w-5 h-5" />}
           color="green"
           emphasis
@@ -189,16 +189,16 @@ export function Ventas({ data, loading }: VentasProps) {
           }}
         />
         <KpiCard
-          title="Neto Facturable"
-          value={formatCurrency(totalFacturado)}
-          subtitle={`Sin IVA: ${formatCurrency(totalActivoSinIVA)}`}
+          title="IVA Repercutido"
+          value={formatCurrency(totalIVARepercutido)}
+          subtitle={`IVA facturado a clientes · ${label}`}
           icon={<TrendingUp className="w-5 h-5" />}
-          color="green"
+          color="default"
         />
         <KpiCard
           title="Tasa de Cobro"
           value={`${tasaCobro.toFixed(1)}%`}
-          subtitle={`Cobrado: ${formatCurrency(totalCobrado)}`}
+          subtitle={`Cobrado s/IVA: ${formatCurrency(totalCobrado)}`}
           icon={<Percent className="w-5 h-5" />}
           color="blue"
           trend={tasaCobro >= 80 ? 'Buen ratio de cobro' : 'Revisar cobros pendientes'}
