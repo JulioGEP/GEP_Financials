@@ -10,7 +10,7 @@ import {
   ResponsiveContainer,
   ReferenceLine,
 } from 'recharts';
-import { TrendingUp, TrendingDown, Minus, BarChart2, ArrowUpDown } from 'lucide-react';
+import { TrendingUp, TrendingDown, Minus, BarChart2, ArrowUpDown, Info } from 'lucide-react';
 import type { FinancialData } from '../../types/financial';
 import { ChartCard, ChartCardSkeleton } from '../ui/ChartCard';
 import { formatCurrency } from '../../lib/parseData';
@@ -140,6 +140,7 @@ function devTextClass(value: number, invert = false): string {
 interface ComparisonTableProps {
   title: string;
   subtitle?: string;
+  note?: string;
   data: MonthData[];
   yearA: number;
   yearB: number;
@@ -149,6 +150,7 @@ interface ComparisonTableProps {
 function ComparisonTable({
   title,
   subtitle,
+  note,
   data,
   yearA,
   yearB,
@@ -191,6 +193,12 @@ function ComparisonTable({
           </span>
         )}
       </div>
+      {note && (
+        <div className="mx-5 my-3 flex gap-2.5 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-xs text-amber-800">
+          <Info size={14} className="mt-0.5 shrink-0 text-amber-500" />
+          <span>{note}</span>
+        </div>
+      )}
 
       <div className="overflow-x-auto">
         <table className="w-full text-sm border-collapse">
@@ -806,7 +814,8 @@ export function Comparativas({ data, loading }: ComparativasProps) {
       {/* Table 4: Facturación (referencia) */}
       <ComparisonTable
         title={`Facturación ${yearA} — Referencia`}
-        subtitle="Importe facturado (no cobrado). Útil para ver pipeline; la métrica real son los Cobros."
+        subtitle="Importe facturado por fecha de emisión de factura."
+        note={`Esta tabla muestra el importe total facturado en cada mes (fecha de la factura), independientemente de si ha sido cobrado. Es útil para ver el pipeline comercial y comparar volumen facturado, pero NO refleja el dinero real en caja. La métrica de tesorería real son los Cobros (tabla superior), que registran únicamente los importes efectivamente ingresados.`}
         data={facturacionMonthData}
         yearA={yearA}
         yearB={yearB}
