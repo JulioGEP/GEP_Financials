@@ -762,6 +762,7 @@ interface PulseTileProps {
   value: string;
   hint?: string;
   delta?: { text: string; direction: 'up' | 'down' | 'neutral' } | null;
+  deltaContext?: string;
   tone: 'positive' | 'negative' | 'neutral' | 'warning';
   highlight?: boolean;
   icon: ReactNode;
@@ -769,7 +770,7 @@ interface PulseTileProps {
   className?: string;
 }
 
-function PulseTile({ label, value, hint, delta, tone, highlight, icon, onClick, className }: PulseTileProps) {
+function PulseTile({ label, value, hint, delta, deltaContext, tone, highlight, icon, onClick, className }: PulseTileProps) {
   const toneText: Record<PulseTileProps['tone'], string> = {
     positive: 'text-green-300',
     negative: 'text-red-300',
@@ -810,15 +811,20 @@ function PulseTile({ label, value, hint, delta, tone, highlight, icon, onClick, 
         <div className="mt-1 text-[11px] text-white/60 leading-snug">{hint}</div>
       )}
       {delta && (
-        <div className={`mt-1.5 inline-flex items-center gap-0.5 text-[11px] font-semibold ${
-          delta.direction === 'up' ? 'text-green-300'
-            : delta.direction === 'down' ? 'text-red-300'
-            : 'text-white/50'
-        }`}>
-          {delta.direction === 'up' && <ArrowUpRight className="w-3 h-3" />}
-          {delta.direction === 'down' && <ArrowDownRight className="w-3 h-3" />}
-          {delta.direction === 'neutral' && <Minus className="w-3 h-3" />}
-          <span>{delta.text}</span>
+        <div className="mt-1.5 flex flex-col gap-0.5">
+          <div className={`inline-flex items-center gap-0.5 text-[11px] font-semibold ${
+            delta.direction === 'up' ? 'text-green-300'
+              : delta.direction === 'down' ? 'text-red-300'
+              : 'text-white/50'
+          }`}>
+            {delta.direction === 'up' && <ArrowUpRight className="w-3 h-3" />}
+            {delta.direction === 'down' && <ArrowDownRight className="w-3 h-3" />}
+            {delta.direction === 'neutral' && <Minus className="w-3 h-3" />}
+            <span>{delta.text}</span>
+          </div>
+          {deltaContext && (
+            <span className="text-[10px] text-white/40 leading-snug">{deltaContext}</span>
+          )}
         </div>
       )}
     </div>
@@ -947,6 +953,7 @@ function PulseHero({
           value={formatCurrency(kpis.resultadoNeto)}
           hint={`Facturación s/IVA − Gastos s/IVA · margen ${kpis.margenPct.toFixed(1)}%`}
           delta={{ text: fmtDelta(deltaResultado), direction: deltaDirection(deltaResultado) }}
+          deltaContext={`vs. ${formatCurrency(prevKpis.resultadoNeto)} mismo periodo año anterior`}
           tone={resultadoTone}
           highlight
           icon={<Activity className="w-4 h-4" />}
