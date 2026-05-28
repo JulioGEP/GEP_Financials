@@ -766,9 +766,10 @@ interface PulseTileProps {
   highlight?: boolean;
   icon: ReactNode;
   onClick?: () => void;
+  className?: string;
 }
 
-function PulseTile({ label, value, hint, delta, tone, highlight, icon, onClick }: PulseTileProps) {
+function PulseTile({ label, value, hint, delta, tone, highlight, icon, onClick, className }: PulseTileProps) {
   const toneText: Record<PulseTileProps['tone'], string> = {
     positive: 'text-green-300',
     negative: 'text-red-300',
@@ -791,7 +792,7 @@ function PulseTile({ label, value, hint, delta, tone, highlight, icon, onClick }
         highlight
           ? 'bg-white/10 ring-1 ring-white/20'
           : 'bg-white/5 ring-1 ring-white/10'
-      } ${onClick ? 'cursor-pointer hover:bg-white/15 hover:ring-white/30' : ''}`}
+      } ${onClick ? 'cursor-pointer hover:bg-white/15 hover:ring-white/30' : ''} ${className ?? ''}`}
     >
       <div className="flex items-start justify-between gap-2 mb-2">
         <div className="flex items-center gap-1.5">
@@ -894,29 +895,53 @@ function PulseHero({
         </div>
       </div>
 
-      {/* Tiles — Fila 1: Ingresos */}
-      <div className="px-4 pt-4 grid grid-cols-1 sm:grid-cols-2 gap-3">
-        <PulseTile
-          label="Total Facturación"
-          value={formatCurrency(kpis.ingresosYTD)}
-          hint={`Base imponible · sin IVA · vs. ${formatCurrency(prevKpis.ingresosYTD)} año ant.`}
-          delta={{ text: fmtDelta(deltaVentas), direction: deltaDirection(deltaVentas) }}
-          tone="neutral"
-          icon={<ReceiptText className="w-4 h-4" />}
-          onClick={() => onOpen('facturacion')}
-        />
-        <PulseTile
-          label="Total Ingresado"
-          value={formatCurrency(kpis.cobradoYTD)}
-          hint={`Cobrado s/IVA · ${kpis.ingresosYTD > 0 ? ((kpis.cobradoYTD / kpis.ingresosYTD) * 100).toFixed(0) : 0}% de la facturación`}
-          tone={kpis.cobradoYTD >= kpis.ingresosYTD * 0.8 ? 'positive' : 'warning'}
-          icon={<Wallet className="w-4 h-4" />}
-          onClick={() => onOpen('caja')}
-        />
-      </div>
+      {/* Tiles — 4 métricas (2×2) a la izquierda + Resultado Neto a la derecha */}
+      <div className="px-4 py-4 grid grid-cols-1 sm:grid-cols-[1fr_minmax(200px,260px)] gap-3 items-stretch">
+        {/* Left: 2×2 grid */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <PulseTile
+            label="Total Facturación"
+            value={formatCurrency(kpis.ingresosYTD)}
+            hint={`Base imponible · sin IVA · vs. ${formatCurrency(prevKpis.ingresosYTD)} año ant.`}
+            delta={{ text: fmtDelta(deltaVentas), direction: deltaDirection(deltaVentas) }}
+            tone="neutral"
+            icon={<ReceiptText className="w-4 h-4" />}
+            onClick={() => onOpen('facturacion')}
+          />
+          <PulseTile
+            label="Total Ingresado"
+            value={formatCurrency(kpis.cobradoYTD)}
+            hint={`Cobrado s/IVA · ${kpis.ingresosYTD > 0 ? ((kpis.cobradoYTD / kpis.ingresosYTD) * 100).toFixed(0) : 0}% de la facturación`}
+            tone={kpis.cobradoYTD >= kpis.ingresosYTD * 0.8 ? 'positive' : 'warning'}
+            icon={<Wallet className="w-4 h-4" />}
+            onClick={() => onOpen('caja')}
+          />
+          <PulseTile
+            label="Total Gastos"
+            value={formatCurrency(kpis.gastosYTD)}
+            hint={`Base imponible · sin IVA · vs. ${formatCurrency(prevKpis.gastosYTD)} año ant.`}
+            delta={{
+              text: fmtDelta(deltaGastos),
+              direction:
+                deltaGastos > 0.5 ? 'down'
+                : deltaGastos < -0.5 ? 'up'
+                : 'neutral',
+            }}
+            tone="neutral"
+            icon={<TrendingDown className="w-4 h-4" />}
+            onClick={() => onOpen('gastos')}
+          />
+          <PulseTile
+            label="Total Pagado"
+            value={formatCurrency(kpis.pagadoYTD)}
+            hint={`Pagado s/IVA · ${kpis.gastosYTD > 0 ? ((kpis.pagadoYTD / kpis.gastosYTD) * 100).toFixed(0) : 0}% de los gastos`}
+            tone={kpis.pagadoYTD >= kpis.gastosYTD * 0.8 ? 'positive' : 'warning'}
+            icon={<Banknote className="w-4 h-4" />}
+            onClick={() => onOpen('caja')}
+          />
+        </div>
 
-      {/* Tiles — Fila 2: Gastos */}
-      <div className="px-4 pb-4 pt-3 grid grid-cols-1 sm:grid-cols-3 gap-3">
+        {/* Right: Resultado Neto — altura completa */}
         <PulseTile
           label="Resultado Neto"
           value={formatCurrency(kpis.resultadoNeto)}
@@ -926,29 +951,7 @@ function PulseHero({
           highlight
           icon={<Activity className="w-4 h-4" />}
           onClick={() => onOpen('resultado')}
-        />
-        <PulseTile
-          label="Total Gastos"
-          value={formatCurrency(kpis.gastosYTD)}
-          hint={`Base imponible · sin IVA · vs. ${formatCurrency(prevKpis.gastosYTD)} año ant.`}
-          delta={{
-            text: fmtDelta(deltaGastos),
-            direction:
-              deltaGastos > 0.5 ? 'down'
-              : deltaGastos < -0.5 ? 'up'
-              : 'neutral',
-          }}
-          tone="neutral"
-          icon={<TrendingDown className="w-4 h-4" />}
-          onClick={() => onOpen('gastos')}
-        />
-        <PulseTile
-          label="Total Pagado"
-          value={formatCurrency(kpis.pagadoYTD)}
-          hint={`Pagado s/IVA · ${kpis.gastosYTD > 0 ? ((kpis.pagadoYTD / kpis.gastosYTD) * 100).toFixed(0) : 0}% de los gastos`}
-          tone={kpis.pagadoYTD >= kpis.gastosYTD * 0.8 ? 'positive' : 'warning'}
-          icon={<Banknote className="w-4 h-4" />}
-          onClick={() => onOpen('caja')}
+          className="h-full flex flex-col justify-center"
         />
       </div>
     </div>
