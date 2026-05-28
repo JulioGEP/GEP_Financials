@@ -658,9 +658,9 @@ export function Comparativas({ data, loading }: ComparativasProps) {
         gastosA: getMonthlyByYear(activosGastos, yearA, (g) => g.fechaPago, (g) => g.pagado),
         gastosB: getMonthlyByYear(activosGastos, yearB, (g) => g.fechaPago, (g) => g.pagado),
 
-        // Facturación (referencia): fecha + total
-        facturacionA: getMonthlyByYear(activas, yearA, (v) => v.fecha, (v) => v.total),
-        facturacionB: getMonthlyByYear(activas, yearB, (v) => v.fecha, (v) => v.total),
+        // Facturación (referencia): fecha + subtotal (sin IVA)
+        facturacionA: getMonthlyByYear(activas, yearA, (v) => v.fecha, (v) => v.subtotal),
+        facturacionB: getMonthlyByYear(activas, yearB, (v) => v.fecha, (v) => v.subtotal),
       };
     }, [data, yearA, yearB]);
 

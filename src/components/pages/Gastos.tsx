@@ -90,23 +90,23 @@ export function Gastos({ data, loading }: GastosProps) {
   const today = new Date();
   today.setHours(0, 0, 0, 0);
 
-  // Row 1 metrics (period-filtered)
-  const totalGastos = sum(filtered, (g) => g.total);
-  const prevTotalGastos = sum(prevFiltered, (g) => g.total);
-  const totalPagado = sum(filtered, (g) => g.pagado);
+  // Row 1 metrics sin IVA (base imponible)
+  const totalGastos = sum(filtered, (g) => g.subtotal);
+  const prevTotalGastos = sum(prevFiltered, (g) => g.subtotal);
+  const totalPagado = sum(filtered, (g) => g.total > 0 ? g.pagado * g.subtotal / g.total : g.pagado);
   const totalIVA = sum(filtered, (g) => g.iva);
   const tasaPago = totalGastos > 0 ? (totalPagado / totalGastos) * 100 : 0;
 
-  // Row 2 metrics (always-current — pending state)
+  // Row 2 metrics sin IVA (always-current — pending state)
   const filteredActivos = applyGastoFilters(activos, filters);
-  const totalPendiente = sum(filteredActivos, (g) => g.pendiente);
+  const totalPendiente = sum(filteredActivos, (g) => g.total > 0 ? g.pendiente * g.subtotal / g.total : g.pendiente);
   const vencidosGastos = filteredActivos.filter(
     (g) => g.estado === 'Vencido' || (g.pendiente > 0 && g.vencimiento && g.vencimiento.getTime() < today.getTime())
   );
-  const pendienteVencidoPago = sum(vencidosGastos, (g) => g.pendiente);
+  const pendienteVencidoPago = sum(vencidosGastos, (g) => g.total > 0 ? g.pendiente * g.subtotal / g.total : g.pendiente);
   const countVencidoPago = vencidosGastos.length;
   const noVencidosGastos = filteredActivos.filter((g) => g.estado === 'Pendiente');
-  const pendienteNoVencidoPago = sum(noVencidosGastos, (g) => g.pendiente);
+  const pendienteNoVencidoPago = sum(noVencidosGastos, (g) => g.total > 0 ? g.pendiente * g.subtotal / g.total : g.pendiente);
   const countNoVencidoPago = noVencidosGastos.length;
 
   // DPO (all-time)
@@ -151,24 +151,24 @@ export function Gastos({ data, loading }: GastosProps) {
     },
     {
       key: 'total',
-      header: 'Total',
-      accessor: (r) => r.total,
+      header: 'Total s/IVA',
+      accessor: (r) => r.subtotal,
       align: 'right',
-      render: (r) => formatCurrency(r.total),
+      render: (r) => formatCurrency(r.subtotal),
     },
     {
       key: 'pagado',
-      header: 'Pagado',
-      accessor: (r) => r.pagado,
+      header: 'Pagado s/IVA',
+      accessor: (r) => r.total > 0 ? r.pagado * r.subtotal / r.total : r.pagado,
       align: 'right',
-      render: (r) => formatCurrency(r.pagado),
+      render: (r) => formatCurrency(r.total > 0 ? r.pagado * r.subtotal / r.total : r.pagado),
     },
     {
       key: 'pendiente',
-      header: 'Pendiente',
-      accessor: (r) => r.pendiente,
+      header: 'Pendiente s/IVA',
+      accessor: (r) => r.total > 0 ? r.pendiente * r.subtotal / r.total : r.pendiente,
       align: 'right',
-      render: (r) => formatCurrency(r.pendiente),
+      render: (r) => formatCurrency(r.total > 0 ? r.pendiente * r.subtotal / r.total : r.pendiente),
     },
     {
       key: 'estado',
@@ -201,7 +201,7 @@ export function Gastos({ data, loading }: GastosProps) {
           title="Total Gastos"
           onClick={() => setOpenModal('principal')}
           value={formatCurrency(totalGastos)}
-          subtitle={`IVA incluido · ${label}`}
+          subtitle={`Sin IVA · ${label}`}
           icon={<TrendingDown className="w-5 h-5" />}
           color="red"
           emphasis
@@ -214,7 +214,7 @@ export function Gastos({ data, loading }: GastosProps) {
         <KpiCard
           title="Total Pagado"
           value={formatCurrency(totalPagado)}
-          subtitle={label}
+          subtitle={`Sin IVA · ${label}`}
           icon={<CheckCircle2 className="w-5 h-5" />}
           color="green"
         />
