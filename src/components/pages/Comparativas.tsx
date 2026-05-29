@@ -145,6 +145,7 @@ interface ComparisonTableProps {
   yearA: number;
   yearB: number;
   invertColors?: boolean;
+  defaultLegendOpen?: boolean;
 }
 
 function ComparisonTable({
@@ -155,7 +156,9 @@ function ComparisonTable({
   yearA,
   yearB,
   invertColors = false,
+  defaultLegendOpen = false,
 }: ComparisonTableProps) {
+  const [legendOpen, setLegendOpen] = useState(defaultLegendOpen);
   const monthsWithCurrentData = data.filter(
     (d) => !d.isCurrentFuture && d.currentValue !== 0,
   ).length;
@@ -187,12 +190,60 @@ function ComparisonTable({
             <p className="text-xs text-gray-500 mt-0.5">{subtitle}</p>
           )}
         </div>
-        {achievementPct !== null && (
-          <span className="text-xs font-semibold px-2.5 py-1 rounded-full bg-gep-gray-light text-gep-dark-light">
-            {achievementPct.toFixed(1).replace('.', ',')}% vs {yearB}
-          </span>
-        )}
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => setLegendOpen((v) => !v)}
+            title="Mostrar / ocultar leyenda"
+            className={`p-1 rounded-full transition-colors ${legendOpen ? 'bg-blue-100 text-blue-600' : 'text-gray-400 hover:text-gray-600 hover:bg-gray-100'}`}
+          >
+            <Info size={15} />
+          </button>
+          {achievementPct !== null && (
+            <span className="text-xs font-semibold px-2.5 py-1 rounded-full bg-gep-gray-light text-gep-dark-light">
+              {achievementPct.toFixed(1).replace('.', ',')}% vs {yearB}
+            </span>
+          )}
+        </div>
       </div>
+      {legendOpen && (
+        <div className="mx-5 my-3 rounded-lg border border-blue-100 bg-blue-50 px-4 py-3 text-xs text-blue-900 space-y-2.5">
+          <p className="font-semibold text-blue-800 mb-1">Cómo leer esta tabla</p>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-2">
+            <div>
+              <span className="font-semibold">IMPORTE</span>
+              <span className="text-blue-700"> — Total del mes en {yearA}.</span>
+            </div>
+            <div>
+              <span className="font-semibold">ACUMULADO</span>
+              <span className="text-blue-700"> — Suma progresiva desde enero hasta ese mes en {yearA}.</span>
+            </div>
+            <div>
+              <span className="font-semibold">MES vs {yearB} (€ / %)</span>
+              <span className="text-blue-700"> — Diferencia del mes respecto al mismo mes de {yearB}, en euros y en porcentaje.</span>
+            </div>
+            <div>
+              <span className="font-semibold">ACUMULADA vs {yearB} (€ / %)</span>
+              <span className="text-blue-700"> — Diferencia acumulada respecto al mismo período de {yearB}, en euros y en porcentaje.</span>
+            </div>
+          </div>
+          <div className="flex flex-wrap gap-x-5 gap-y-1 pt-1 border-t border-blue-100">
+            <span className="flex items-center gap-1.5">
+              <span className="inline-block w-3 h-3 rounded-sm bg-green-100 border border-green-300" />
+              <span className="text-green-800 font-medium">Verde</span>
+              <span className="text-blue-700">= mejor que {yearB}</span>
+            </span>
+            <span className="flex items-center gap-1.5">
+              <span className="inline-block w-3 h-3 rounded-sm bg-red-100 border border-red-300" />
+              <span className="text-red-700 font-medium">Rojo</span>
+              <span className="text-blue-700">= peor que {yearB}</span>
+            </span>
+            <span className="flex items-center gap-1.5">
+              <span className="font-mono text-gray-400 font-semibold">—</span>
+              <span className="text-blue-700">= mes futuro o sin datos comparables</span>
+            </span>
+          </div>
+        </div>
+      )}
       {note && (
         <div className="mx-5 my-3 flex gap-2.5 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-xs text-amber-800">
           <Info size={14} className="mt-0.5 shrink-0 text-amber-500" />
@@ -597,6 +648,7 @@ function ResultadoTable({ cobrosData, gastosData, yearA, yearB }: ResultadoRowPr
       data={data}
       yearA={yearA}
       yearB={yearB}
+      defaultLegendOpen
     />
   );
 }
